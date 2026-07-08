@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OpcOS Orbit</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <!-- ── RAIL ICON DỌC (điều hướng panel) ─────────────────────────────── -->
+  <nav class="rail" aria-label="Điều hướng">
+    <div class="rail-logo" title="OpcOS Orbit">OO</div>
+    <button class="rail-btn active" data-rail="chat" title="Chat" aria-label="Chat">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    </button>
+    <button class="rail-btn" data-tab="dashPanel" title="Mission Control (agent đang chạy)" aria-label="Mission Control" id="dashRailBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      <span id="dashBadge" class="rail-badge" hidden></span>
+    </button>
+    <button class="rail-btn" data-tab="libraryPanel" title="Agents" aria-label="Agents">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>
+    </button>
+    <button class="rail-btn" data-tab="voicePanel" title="Voice Studio" aria-label="Voice">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+    </button>
+    <button class="rail-btn" data-tab="contextPanel" title="Context" aria-label="Context">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+    </button>
+    <button class="rail-btn" data-tab="systemPanel" title="System (registry · MCP · opcos)" aria-label="System">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+    </button>
+    <div class="rail-spacer"></div>
+    <button class="rail-btn" data-tab="sessionPanel" title="Khác (phiên · remote)" aria-label="Khác">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </nav>
+
+  <!-- ── CỘT PHẢI: chip toolbar + workspace ────────────────────────────── -->
+  <div class="app">
+    <header class="topbar">
+      <span class="brand">OpcOS Orbit</span>
+      <span id="status" class="status">chưa kết nối</span>
+      <span id="sessionChip" class="chip">✎ Nháp</span>
+      <span id="agentsChip" class="chip"></span>
+      <span id="hostChip" class="chip"></span>
+      <span class="spacer"></span>
+      <button id="reconnectBtn" class="icon-btn" title="Kết nối lại" aria-label="Kết nối lại">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      </button>
+    </header>
+
+    <div class="workspace">
+      <!-- KHU CÀI ĐẶT (panel mở theo rail) -->
+      <aside id="sidebar" class="sidebar collapsed">
+        <div class="tab-body">
+          <section id="libraryPanel" class="panel active">
+            <h2>Tạo instance từ agent</h2>
+            <div class="field">
+              <label for="scanPathInput">Quét thêm agent từ folder</label>
+              <div class="scan-row">
+                <input id="scanPathInput" type="text" placeholder="~/Code/repo/agents" autocomplete="off" />
+                <button id="scanBtn">Quét</button>
+              </div>
+            </div>
+            <div class="field">
+              <label for="agentSearch">Lọc agent</label>
+              <input id="agentSearch" type="text" placeholder="gõ tên / vai để lọc…" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="agentSelect">Agent</label>
+              <select id="agentSelect" aria-label="Chọn agent"></select>
+            </div>
+            <div class="field">
+              <label for="createEngine">Engine</label>
+              <select id="createEngine" aria-label="Chọn engine"></select>
+            </div>
+            <button id="createInstBtn" class="primary-btn">+ Tạo CLI</button>
+
+            <h2>Instances (agent đã dựng)</h2>
+            <div id="instanceList" class="instance-list"></div>
+          </section>
+
+          <section id="dashPanel" class="panel">
+            <h2>⚡ Mission Control</h2>
+            <div id="dashSummary" class="dash-summary"></div>
+            <div id="jobList" class="job-list"><p class="empty">chưa có job nào</p></div>
+            <div class="create-row">
+              <button id="seenAllBtn">Đánh dấu đã xem hết</button>
+            </div>
+            <p class="hint">Trạng thái kiểu herdr: <span class="dot d-blocked"></span>blocked (chờ bạn) ·
+              <span class="dot d-working"></span>working · <span class="dot d-done"></span>done chưa xem ·
+              <span class="dot d-idle"></span>đã xem. Thông báo trình duyệt bật khi có job blocked.</p>
+          </section>
+
+          <section id="systemPanel" class="panel">
+            <h2>🗺️ System — opcos</h2>
+            <div id="sysRegistry" class="sys-block"><p class="empty">đang tải…</p></div>
+            <div class="create-row">
+              <button id="sysOpenRegistryBtn">Mở bản đồ registry</button>
+              <button id="sysRefreshBtn">↻ Làm mới</button>
+            </div>
+            <h2>MCP đã đăng ký</h2>
+            <div id="sysMcp" class="sys-block"></div>
+            <div class="create-row">
+              <button id="sysMcpLiveBtn" title="Chạy 'claude mcp list' — chậm 10-60s vì nối thật từng server">⚡ Kiểm tra live MCP</button>
+            </div>
+            <div id="sysMcpLive" class="sys-block"></div>
+            <h2>Cài repo mới</h2>
+            <div class="scan-row">
+              <input id="sysAdoptInput" type="text" placeholder="https://github.com/owner/repo" autocomplete="off" />
+              <button id="sysAdoptBtn">Phân tích</button>
+            </div>
+            <p class="hint">Nút Phân tích điền lệnh adopt-repo vào ô chat — Lead chạy quy trình nghiên cứu → GATE bạn duyệt.</p>
+          </section>
+
+          <section id="voicePanel" class="panel">
+            <h2>🎙️ Voice Studio</h2>
+            <div id="voiceList" class="instance-list"></div>
+
+            <h2>Nhân bản giọng (Clone)</h2>
+            <div class="create-row">
+              <input id="voiceCloneWavInput" type="file" accept="audio/wav" />
+              <input id="voiceCloneRefText" type="text" placeholder="Văn bản đọc trong file wav" />
+              <input id="voiceCloneName" type="text" placeholder="Tên giọng mới" />
+              <button id="voiceCloneBtn">Nhân bản</button>
+            </div>
+
+            <h2>Tạo giọng (mô tả)</h2>
+            <div class="create-row">
+              <input id="voiceCreateInstruct" type="text" placeholder="Mô tả giọng (vd: giọng nữ trẻ trung, ấm)" />
+              <input id="voiceCreateName" type="text" placeholder="Tên giọng mới" />
+              <button id="voiceCreateBtn">Tạo</button>
+            </div>
+
+            <h2>Gán giọng cho instance</h2>
+            <div class="create-row">
+              <select id="voiceAssignInstanceSelect"></select>
+              <select id="voiceAssignVoiceSelect"></select>
+              <button id="voiceAssignBtn">Gán</button>
+            </div>
+            <p id="voiceStatus" class="empty">—</p>
+          </section>
+
+          <section id="contextPanel" class="panel">
+            <h2>Context</h2>
+            <div class="scan-row">
+              <input id="ctxScanPathInput" type="text" placeholder="Đường dẫn folder cần quét" />
+              <button id="ctxScanBtn">Quét folder</button>
+            </div>
+            <div class="scan-row">
+              <input id="ctxUploadInput" type="file" />
+            </div>
+            <div id="ctxFileList" class="agent-list"></div>
+
+            <div class="create-row">
+              <select id="ctxInstanceSelect"></select>
+            </div>
+
+            <h2>Đã gắn (attached)</h2>
+            <div id="ctxAttachedList" class="agent-list"></div>
+          </section>
+
+          <section id="sessionPanel" class="panel">
+            <h2>Phiên hội thoại (đổi tên)</h2>
+            <p class="hint">Tạo/mở phiên ở thanh TAB phía trên khung chat (nút ＋). Ở đây chỉ đổi tên.</p>
+            <div id="sessionList" class="instance-list"></div>
+
+            <h2>Remote control</h2>
+            <div class="create-row">
+              <button id="remoteOnBtn">Bật remote</button>
+              <button id="remoteOffBtn">Tắt remote</button>
+            </div>
+            <p id="remoteStatus" class="empty">chưa bật</p>
+          </section>
+        </div>
+      </aside>
+
+      <!-- KHU CHAT -->
+      <section class="chat">
+        <div id="sessionTabs" class="session-tabs"></div>
+        <div id="agentStrip" class="agent-strip"></div>
+        <div id="transcript" class="transcript"></div>
+        <footer class="composer">
+          <button id="muteBtn" class="composer-icon" title="Bật/tắt âm thanh">🔊</button>
+          <button id="micBtn" class="mic-btn" title="Giữ để nói">🎙️ Giữ để nói</button>
+          <input id="textInput" type="text" placeholder="Nhắn tin (Enter để gửi, Shift+Enter xuống dòng)…" autocomplete="off" />
+          <button id="sendBtn" class="send-btn" title="Gửi" aria-label="Gửi">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </footer>
+      </section>
+    </div>
+  </div>
+
+  <audio id="player" hidden></audio>
+
+  <script>
+    // ── Rail nav: chọn panel / thu gọn sidebar (thuần UI, không đụng logic panel) ──
+    (function () {
+      var sidebar = document.getElementById("sidebar");
+      var railBtns = document.querySelectorAll(".rail-btn");
+      var chatBtn = document.querySelector('.rail-btn[data-rail="chat"]');
+
+      function clearActive() { railBtns.forEach(function (b) { b.classList.remove("active"); }); }
+      function showPanel(id) {
+        document.querySelectorAll(".tab-body .panel").forEach(function (p) { p.classList.remove("active"); });
+        var el = document.getElementById(id);
+        if (el) el.classList.add("active");
+      }
+      railBtns.forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var tab = btn.dataset.tab;
+          if (!tab) {                                   // nút Chat → xem chat toàn màn hình
+            sidebar.classList.add("collapsed");
+            clearActive(); btn.classList.add("active");
+            return;
+          }
+          // bấm lại panel đang mở → thu gọn về chat
+          if (btn.classList.contains("active") && !sidebar.classList.contains("collapsed")) {
+            sidebar.classList.add("collapsed");
+            clearActive(); if (chatBtn) chatBtn.classList.add("active");
+            return;
+          }
+          sidebar.classList.remove("collapsed");
+          showPanel(tab);
+          clearActive(); btn.classList.add("active");
+        });
+      });
+
+      // Mặc định: chat toàn màn hình (giống Claude Code) — sidebar thu gọn, nút Chat active (đặt sẵn trong HTML)
+
+      // Chip host + nút kết nối lại
+      var hostChip = document.getElementById("hostChip");
+      if (hostChip) hostChip.textContent = "🌐 " + location.host;
+      var reBtn = document.getElementById("reconnectBtn");
+      if (reBtn) reBtn.addEventListener("click", function () { try { if (typeof ws !== "undefined" && ws) ws.close(); } catch (e) {} });
+
+      // Nút gửi (song song với Enter trong app.js)
+      var sendBtn = document.getElementById("sendBtn");
+      var textInput = document.getElementById("textInput");
+      if (sendBtn && textInput) sendBtn.addEventListener("click", function () {
+        var v = textInput.value.trim();
+        if (v && typeof sendText === "function") { sendText(v); textInput.value = ""; }
+      });
+    })();
+  </script>
+  <script src="/app.js"></script>
+  <script src="/library.js"></script>
+  <script src="/context.js"></script>
+  <script src="/session.js"></script>
+  <script src="/voices.js"></script>
+  <script src="/dashboard.js"></script>
+</body>
+</html>

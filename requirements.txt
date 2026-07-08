@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+websockets
+faster-whisper
+python-multipart
+pytest
+# GPU STT (tuỳ chọn — tăng tốc faster-whisper; thiếu thì stt.py tự rơi về CPU):
+#   pip install nvidia-cublas-cu12 nvidia-cudnn-cu12

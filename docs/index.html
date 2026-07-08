@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpcOS Orbit · Bảng điều khiển thoại cho tổ đội AI-agent</title>
+<meta name="description" content="OpcOS Orbit là console mã nguồn mở: điều phối Claude, Codex, Gemini, Antigravity và Ollama bằng giọng nói hoặc gõ chữ, theo dõi realtime agent nào đang bận — đang chờ bạn — đã xong.">
+<meta name="theme-color" content="#2f6df6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e0f13" media="(prefers-color-scheme: dark)">
+<meta property="og:title" content="OpcOS Orbit · voice console điều phối multi-agent">
+<meta property="og:description" content="Một Lead phân việc cho nhiều CLI agent, dashboard realtime blocked/working/done, voice hai chiều tuỳ chọn. Mã nguồn mở, MIT.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://ducnguyen.vn/opcos-orbit/">
+<meta property="og:image" content="https://ducnguyen.vn/opcos-orbit/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="OpcOS Orbit · voice console điều phối multi-agent">
+<meta name="twitter:image" content="https://ducnguyen.vn/opcos-orbit/og-image.png">
+<link rel="icon" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#ffffff;
+    --bg-tint:#f7f9fc;
+    --surface:#ffffff;
+    --surface-2:#f4f6fa;
+    --surface-3:#eef1f6;
+    --border:#e4e8ef;
+    --border-strong:#d3d9e3;
+    --text:#14161b;
+    --muted:#565d69;
+    --faint:#868d99;
+    --accent:#5b6df6;
+    --accent-ink:#3f4fd6;
+    --accent-weak:#eaecfe;
+    --accent-glow:rgba(91,109,246,.16);
+    --ok:#0f9d58;
+    --ok-weak:#e4f5ec;
+    --warn:#c9820a;
+    --danger:#d64545;
+    --danger-weak:#fbe9e9;
+    --code-bg:#0f1116;
+    --code-text:#e8ebf1;
+    --code-border:#20242e;
+    --radius:16px;
+    --radius-sm:11px;
+    --shadow-sm:0 1px 2px rgba(16,24,40,.05), 0 1px 3px rgba(16,24,40,.04);
+    --shadow-md:0 8px 24px -8px rgba(16,24,40,.12), 0 2px 6px rgba(16,24,40,.05);
+    --shadow-lg:0 30px 70px -24px rgba(20,40,90,.28);
+    --mono:"JetBrains Mono",ui-monospace,"Cascadia Code",Consolas,monospace;
+    --font:"Be Vietnam Pro",-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif;
+    --maxw:1160px;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0e0f13;
+      --bg-tint:#111318;
+      --surface:#16181d;
+      --surface-2:#1b1e24;
+      --surface-3:#22262e;
+      --border:#282c34;
+      --border-strong:#343a44;
+      --text:#e9ebef;
+      --muted:#a4abb6;
+      --faint:#727984;
+      --accent:#7b8bff;
+      --accent-ink:#a3aeff;
+      --accent-weak:#1b1f38;
+      --accent-glow:rgba(123,139,255,.20);
+      --ok:#3ec38a;
+      --ok-weak:#12271d;
+      --warn:#e0a032;
+      --danger:#e5696b;
+      --danger-weak:#2b1315;
+      --code-bg:#0a0c10;
+      --code-text:#e4e8f0;
+      --code-border:#20242e;
+      --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+      --shadow-md:0 10px 28px -10px rgba(0,0,0,.6);
+      --shadow-lg:0 34px 80px -28px rgba(0,0,0,.75);
+    }
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth;background:var(--bg)}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+  #netbg{position:fixed;inset:0;width:100%;height:100%;z-index:-1;pointer-events:none;opacity:.9}
+  body{
+    margin:0;background:transparent;color:var(--text);
+    font-family:var(--font);line-height:1.6;font-size:16px;
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+    overflow-x:hidden;
+  }
+  a{color:inherit;text-decoration:none}
+  h1,h2,h3{margin:0;letter-spacing:-.02em;line-height:1.1}
+  p{margin:0}
+  ::selection{background:var(--accent);color:#fff}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px}
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:12.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+    color:var(--accent);
+  }
+  .eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--ok)}
+
+  header.site{
+    position:sticky;top:0;z-index:50;
+    background:color-mix(in srgb,var(--bg) 82%,transparent);
+    backdrop-filter:saturate(180%) blur(14px);
+    -webkit-backdrop-filter:saturate(180%) blur(14px);
+    border-bottom:1px solid transparent;transition:border-color .25s;
+  }
+  header.site.scrolled{border-bottom-color:var(--border)}
+  .nav{display:flex;align-items:center;gap:20px;height:64px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:-.01em}
+  .brand img{width:30px;height:30px;border-radius:8px;display:block}
+  .nav-links{display:flex;gap:26px;margin-left:auto}
+  .nav-links a{font-size:14.5px;font-weight:500;color:var(--muted);transition:color .18s}
+  .nav-links a:hover{color:var(--text)}
+  .nav .gh{margin-left:22px}
+  @media (max-width:820px){.nav-links{display:none}.nav .gh{margin-left:auto}}
+
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;white-space:nowrap;
+    font-family:var(--font);font-size:15px;font-weight:600;
+    padding:11px 18px;border-radius:11px;border:1px solid transparent;cursor:pointer;
+    transition:transform .12s ease, background .18s, border-color .18s, box-shadow .18s;
+  }
+  .btn svg{width:18px;height:18px;flex:none}
+  .btn:active{transform:translateY(1px)}
+  .btn-primary{background:var(--accent);color:#fff;box-shadow:0 6px 18px -6px var(--accent-glow)}
+  .btn-primary:hover{background:var(--accent-ink);box-shadow:0 10px 24px -8px var(--accent-glow)}
+  .btn-ghost{background:var(--surface-2);color:var(--text);border-color:var(--border)}
+  .btn-ghost:hover{background:var(--surface-3);border-color:var(--border-strong)}
+  .btn-sm{padding:8px 14px;font-size:14px;border-radius:9px}
+
+  .hero{position:relative;padding:72px 0 40px;overflow:hidden}
+  .hero::before{
+    content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+    background:
+      radial-gradient(120% 90% at 82% -10%, var(--accent-glow), transparent 55%),
+      radial-gradient(90% 70% at 8% 0%, color-mix(in srgb,var(--accent) 8%,transparent), transparent 50%);
+  }
+  .hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:52px;align-items:center}
+  .hero-badge{
+    display:inline-flex;align-items:center;gap:9px;
+    padding:6px 12px 6px 8px;border-radius:999px;
+    background:var(--surface-2);border:1px solid var(--border);
+    font-size:13px;font-weight:600;color:var(--muted);margin-bottom:22px;
+  }
+  .hero-badge b{color:var(--text)}
+  .hero-badge .tick{
+    display:inline-flex;width:20px;height:20px;border-radius:50%;
+    background:var(--ok-weak);color:var(--ok);align-items:center;justify-content:center;
+  }
+  .hero-badge .tick svg{width:12px;height:12px}
+  .hero h1{font-size:clamp(2.15rem,5.4vw,3.5rem);font-weight:800}
+  .hero h1 .hl{color:var(--accent);position:relative;white-space:nowrap}
+  .hero .lead{margin-top:20px;font-size:clamp(1.02rem,2.2vw,1.22rem);color:var(--muted);max-width:36ch;line-height:1.55}
+  .hero-cta{display:flex;gap:12px;margin-top:30px;flex-wrap:wrap}
+  .tech-badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:30px}
+  .tb{
+    display:inline-flex;align-items:center;gap:7px;
+    font-size:12.5px;font-weight:600;font-family:var(--mono);
+    padding:6px 11px;border-radius:8px;background:var(--surface-2);
+    border:1px solid var(--border);color:var(--muted);
+  }
+  .tb .g{width:7px;height:7px;border-radius:2px;background:var(--accent)}
+  .tb.local .g{background:var(--ok)}
+
+  /* ---------- hero preview: Mission Control mock ---------- */
+  .preview{
+    position:relative;border-radius:var(--radius);
+    background:var(--surface);border:1px solid var(--border);
+    box-shadow:var(--shadow-lg);overflow:hidden;
+  }
+  .preview::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}
+  @media (prefers-color-scheme:dark){.preview::after{box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}}
+  .pv-top{
+    display:flex;align-items:center;gap:10px;padding:12px 16px;
+    border-bottom:1px solid var(--border);background:var(--surface-2);
+  }
+  .pv-live{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--muted)}
+  .pv-live .rec{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 0 var(--accent-glow);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 var(--accent-glow)}70%{box-shadow:0 0 0 7px rgba(0,0,0,0)}100%{box-shadow:0 0 0 0 rgba(0,0,0,0)}}
+  @media (prefers-reduced-motion:reduce){.pv-live .rec{animation:none}}
+  .pv-src{margin-left:auto;font-size:11.5px;font-family:var(--mono);color:var(--faint)}
+  .pv-body{padding:14px 14px 16px;display:flex;flex-direction:column;gap:9px}
+  .jc{display:flex;align-items:flex-start;gap:9px;padding:10px 12px;border-radius:10px;border:1px solid var(--border)}
+  .jc .d{width:8px;height:8px;border-radius:50%;margin-top:4px;flex:none}
+  .jc.blocked{border-color:color-mix(in srgb,var(--danger) 45%,var(--border));background:var(--danger-weak)}
+  .jc.blocked .d{background:var(--danger);box-shadow:0 0 0 3px color-mix(in srgb,var(--danger) 18%,transparent)}
+  .jc.working .d{background:var(--warn);box-shadow:0 0 0 3px color-mix(in srgb,var(--warn) 16%,transparent)}
+  .jc.done .d{background:var(--ok)}
+  .jc .m{flex:1;min-width:0}
+  .jc .h{display:flex;align-items:baseline;gap:8px;font-size:12.5px;font-weight:700}
+  .jc .eng{font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);
+    background:var(--accent-weak);border-radius:999px;padding:1px 7px}
+  .jc .t{margin-left:auto;color:var(--faint);font-family:var(--mono);font-size:11px}
+  .jc .p{margin-top:3px;font-size:11.5px;color:var(--muted)}
+  .jc .hint{margin-top:3px;font-size:11px;color:var(--danger);font-weight:600}
+
+  section{padding:72px 0}
+  .sec-head{max-width:640px;margin-bottom:40px}
+  .sec-head h2{font-size:clamp(1.7rem,3.6vw,2.4rem);font-weight:800;margin-top:14px}
+  .sec-head p{margin-top:14px;color:var(--muted);font-size:1.05rem;line-height:1.6}
+
+  .bento{display:grid;grid-template-columns:repeat(6,1fr);gap:16px}
+  .feat{
+    grid-column:span 2;
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:24px;box-shadow:var(--shadow-sm);transition:transform .2s ease, box-shadow .2s ease, border-color .2s;
+  }
+  .feat:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);border-color:var(--border-strong)}
+  .feat.wide{grid-column:span 3}
+  .feat.full{grid-column:span 6}
+  .ficon{
+    width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+    background:var(--accent-weak);color:var(--accent);margin-bottom:16px;
+  }
+  .ficon svg{width:23px;height:23px}
+  .feat h3{font-size:1.12rem;font-weight:700}
+  .feat p{margin-top:9px;color:var(--muted);font-size:14.5px;line-height:1.55}
+  .feat .kbd{display:inline-block;margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--muted);
+    background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:3px 8px}
+  .feat.full{
+    display:grid;grid-template-columns:1.1fr 1fr;gap:28px;align-items:center;
+    background:linear-gradient(180deg,var(--ok-weak),transparent 70%),var(--surface);
+    border-color:color-mix(in srgb,var(--ok) 30%,var(--border));
+  }
+  .feat.full .ficon{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+  .feat.full h3{font-size:1.3rem}
+  .privacy-tags{display:flex;flex-wrap:wrap;gap:8px;align-content:flex-start}
+  .ptag{font-size:13px;font-weight:600;padding:8px 12px;border-radius:9px;background:var(--surface);
+    border:1px solid var(--border);color:var(--muted);display:inline-flex;gap:8px;align-items:center}
+  .ptag svg{width:15px;height:15px;color:var(--ok)}
+  .ptag.out{color:var(--faint)}
+  .ptag.out svg{color:var(--warn)}
+  @media (max-width:900px){
+    .bento{grid-template-columns:repeat(2,1fr)}
+    .feat,.feat.wide{grid-column:span 1}
+    .feat.full{grid-column:span 2;grid-template-columns:1fr}
+  }
+  @media (max-width:560px){
+    .bento{grid-template-columns:1fr}
+    .feat,.feat.wide,.feat.full{grid-column:span 1}
+  }
+
+  .pipe-wrap{overflow-x:auto;padding-bottom:6px;margin:0 -22px;padding-left:22px;padding-right:22px}
+  .pipe{display:flex;gap:0;min-width:min-content}
+  .pstep{
+    flex:1 1 0;min-width:172px;position:relative;
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);
+    padding:20px 18px;box-shadow:var(--shadow-sm);
+  }
+  .pstep:not(:last-child){margin-right:26px}
+  .pstep:not(:last-child)::after{
+    content:"";position:absolute;top:50%;right:-26px;width:26px;height:2px;
+    background:linear-gradient(90deg,var(--border-strong),var(--accent));
+  }
+  .pstep:not(:last-child)::before{
+    content:"";position:absolute;top:50%;right:-8px;width:0;height:0;transform:translateY(-50%);
+    border-left:7px solid var(--accent);border-top:5px solid transparent;border-bottom:5px solid transparent;z-index:2;
+  }
+  .pnum{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--accent);
+    background:var(--accent-weak);border-radius:6px;padding:2px 7px;display:inline-block}
+  .pstep h3{margin-top:14px;font-size:1.02rem;font-weight:700}
+  .pstep p{margin-top:6px;font-size:13px;color:var(--muted);line-height:1.5}
+  @media (max-width:760px){
+    .pipe{flex-direction:column}
+    .pstep{min-width:0}
+    .pstep:not(:last-child){margin-right:0;margin-bottom:28px}
+    .pstep:not(:last-child)::after{top:auto;bottom:-26px;right:50%;width:2px;height:26px;background:linear-gradient(180deg,var(--border-strong),var(--accent))}
+    .pstep:not(:last-child)::before{top:auto;bottom:-9px;right:50%;transform:translateX(50%);
+      border-left:5px solid transparent;border-right:5px solid transparent;border-top:7px solid var(--accent);border-bottom:0}
+  }
+
+  .install{background:var(--bg-tint);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+  .install-grid{display:grid;grid-template-columns:1fr 1fr;gap:44px;align-items:start}
+  .code-card{
+    background:var(--code-bg);border:1px solid var(--code-border);border-radius:var(--radius);
+    box-shadow:var(--shadow-lg);overflow:hidden;
+  }
+  .code-top{display:flex;align-items:center;gap:8px;padding:11px 15px;border-bottom:1px solid var(--code-border)}
+  .code-top .fn{font-family:var(--mono);font-size:12.5px;color:#9aa3b2;margin-left:2px}
+  .copy-btn{
+    margin-left:auto;display:inline-flex;align-items:center;gap:6px;cursor:pointer;
+    font-family:var(--font);font-size:12.5px;font-weight:600;color:#cdd4e0;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);
+    padding:5px 11px;border-radius:8px;transition:background .15s,color .15s;
+  }
+  .copy-btn:hover{background:rgba(255,255,255,.12);color:#fff}
+  .copy-btn svg{width:14px;height:14px}
+  .copy-btn.done{color:#3ec38a;border-color:rgba(62,195,138,.4)}
+  .code-scroll{overflow-x:auto}
+  pre{margin:0;padding:18px 18px 20px}
+  pre code{
+    font-family:var(--mono);font-size:13px;line-height:1.85;color:var(--code-text);
+    white-space:pre;display:block;
+  }
+  .code-scroll .cm{color:#6f7a8d}
+  .code-scroll .pr{color:#7b8bff}
+  .install-copy h2{font-size:clamp(1.7rem,3.6vw,2.3rem);font-weight:800}
+  .install-copy p{margin-top:14px;color:var(--muted);line-height:1.6}
+  .req{margin-top:22px;display:flex;flex-direction:column;gap:11px}
+  .req li{display:flex;gap:11px;align-items:flex-start;list-style:none;font-size:14.5px}
+  .req ul{margin:0;padding:0}
+  .req .ic{flex:none;width:22px;height:22px;border-radius:6px;background:var(--accent-weak);color:var(--accent);
+    display:flex;align-items:center;justify-content:center;margin-top:1px}
+  .req .ic svg{width:13px;height:13px}
+  .req b{color:var(--text)}
+  @media (max-width:840px){.install-grid{grid-template-columns:1fr;gap:30px}}
+
+  .compare{border-collapse:separate;border-spacing:0;width:100%;background:var(--surface);
+    border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm)}
+  .compare th,.compare td{padding:15px 18px;text-align:left;font-size:14.5px;vertical-align:top}
+  .compare thead th{background:var(--surface-2);font-weight:700;font-size:13.5px;border-bottom:1px solid var(--border)}
+  .compare thead th.us{color:var(--accent)}
+  .compare tbody tr:not(:last-child) td{border-bottom:1px solid var(--border)}
+  .compare td.lbl{font-weight:600;color:var(--muted);width:34%}
+  .compare td.us{font-weight:600}
+  .compare td .yes{color:var(--ok);font-weight:700}
+  .compare td .no{color:var(--faint)}
+  .cmp-wrap{overflow-x:auto}
+  @media (max-width:600px){.compare th,.compare td{padding:12px 13px;font-size:13.5px}}
+
+  .legal{
+    display:flex;gap:14px;align-items:flex-start;
+    background:var(--surface-2);border:1px solid var(--border);border-left:3px solid var(--warn);
+    border-radius:var(--radius-sm);padding:18px 20px;
+  }
+  .legal svg{flex:none;width:20px;height:20px;color:var(--warn);margin-top:2px}
+  .legal p{font-size:14px;color:var(--muted);line-height:1.6}
+  .legal b{color:var(--text)}
+
+  .final{text-align:center;padding:80px 0}
+  .final h2{font-size:clamp(1.8rem,4vw,2.6rem);font-weight:800}
+  .final p{margin:16px auto 0;max-width:46ch;color:var(--muted);font-size:1.06rem}
+  .final .hero-cta{justify-content:center;margin-top:32px}
+
+  footer.site{border-top:1px solid var(--border);background:var(--bg-tint);padding:44px 0 40px}
+  .foot{display:flex;justify-content:space-between;gap:30px;flex-wrap:wrap;align-items:flex-start}
+  .foot .brand{margin-bottom:10px}
+  .foot-tag{color:var(--muted);font-size:14px;max-width:34ch;line-height:1.55}
+  .foot-links{display:flex;gap:40px;flex-wrap:wrap}
+  .foot-col b{display:block;font-size:12.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);margin-bottom:12px}
+  .foot-col a{display:block;font-size:14.5px;color:var(--muted);margin-bottom:9px;transition:color .15s}
+  .foot-col a:hover{color:var(--accent)}
+  .foot-bottom{margin-top:36px;padding-top:22px;border-top:1px solid var(--border);
+    display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;color:var(--faint);font-size:13px}
+  .foot-bottom .lic{font-family:var(--mono)}
+
+  @media (prefers-reduced-motion:no-preference){
+    .reveal{opacity:0;transform:translateY(20px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .reveal.in{opacity:1;transform:none}
+  }
+</style>
+</head>
+<body>
+<canvas id="netbg" aria-hidden="true"></canvas>
+
+<header class="site" id="siteHeader">
+  <div class="wrap nav">
+    <a class="brand" href="#top"><img src="logo.png" alt="OpcOS Orbit logo">OpcOS Orbit</a>
+    <nav class="nav-links">
+      <a href="#tinh-nang">Tính năng</a>
+      <a href="#cach-hoat-dong">Cách hoạt động</a>
+      <a href="#cai-dat">Cài đặt</a>
+      <a href="#rieng-tu">Riêng tư</a>
+    </nav>
+    <a class="btn btn-ghost btn-sm gh" href="https://github.com/ducnguyen221/opcos-orbit" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.09.68-.22.68-.49 0-.24-.01-.87-.01-1.71-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.49-1.11-1.49-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.36-2.22-.26-4.55-1.14-4.55-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05a9.4 9.4 0 0 1 2.5-.34c.85 0 1.71.12 2.5.34 1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9 0 1.37-.01 2.48-.01 2.82 0 .27.18.59.69.49A10.02 10.02 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z"/></svg>
+      GitHub
+    </a>
+  </div>
+</header>
+
+<main id="top">
+
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <span class="hero-badge">
+        <span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>
+        Mã nguồn mở &nbsp;·&nbsp; <b>Chạy trên máy bạn</b>
+      </span>
+      <h1>Một bảng điều khiển cho<br><span class="hl">cả tổ đội AI-agent</span> của bạn.</h1>
+      <p class="lead">Nói hoặc gõ một câu — Lead phân việc cho Claude, Codex, Gemini, Antigravity hoặc Ollama. Xem ngay agent nào đang bận, agent nào đang chờ bạn duyệt, agent nào đã xong.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="#cai-dat">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13"/><path d="m7 12 5 5 5-5"/><path d="M5 21h14"/></svg>
+          Cài đặt
+        </a>
+        <a class="btn btn-ghost" href="https://github.com/ducnguyen221/opcos-orbit" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.09.68-.22.68-.49 0-.24-.01-.87-.01-1.71-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.49-1.11-1.49-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.36-2.22-.26-4.55-1.14-4.55-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05a9.4 9.4 0 0 1 2.5-.34c.85 0 1.71.12 2.5.34 1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9 0 1.37-.01 2.48-.01 2.82 0 .27.18.59.69.49A10.02 10.02 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z"/></svg>
+          Xem trên GitHub
+        </a>
+      </div>
+      <div class="tech-badges">
+        <span class="tb local"><span class="g"></span>Voice tuỳ chọn</span>
+        <span class="tb"><span class="g"></span>MIT License</span>
+        <span class="tb"><span class="g"></span>Windows</span>
+        <span class="tb"><span class="g"></span>5 engine agent</span>
+      </div>
+    </div>
+
+    <div class="preview" role="img" aria-label="Minh hoạ Mission Control: 3 thẻ job với trạng thái blocked, working, done.">
+      <div class="pv-top">
+        <span class="pv-live"><span class="rec"></span>Mission Control</span>
+        <span class="pv-src">1 blocked · 1 working · 1 done</span>
+      </div>
+      <div class="pv-body">
+        <div class="jc blocked">
+          <span class="d"></span>
+          <div class="m">
+            <div class="h">coder-1<span class="eng">codex</span><span class="t">49s</span></div>
+            <div class="p">Viết unit test cho jobs.py</div>
+            <div class="hint">⛔ có vẻ đang chờ bạn (im lặng 35s)</div>
+          </div>
+        </div>
+        <div class="jc working">
+          <span class="d"></span>
+          <div class="m">
+            <div class="h">lead-1<span class="eng">claude</span><span class="t">12s</span></div>
+            <div class="p">Tổng hợp kết quả nghiên cứu…</div>
+          </div>
+        </div>
+        <div class="jc done">
+          <span class="d"></span>
+          <div class="m">
+            <div class="h">researcher-1<span class="eng">agy</span><span class="t">xong</span></div>
+            <div class="p">Đã tổng hợp 5 pattern chính</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="tinh-nang">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow"><span class="dot"></span>Tính năng</span>
+      <h2>Điều phối nhiều agent, nhìn một chỗ là biết hết</h2>
+      <p>Không còn mở 5 cửa sổ terminal để đoán xem con nào đang chạy, con nào đang treo chờ duyệt. OpcOS Orbit gộp tất cả vào một console.</p>
+    </div>
+
+    <div class="bento">
+      <article class="feat wide reveal">
+        <div class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+        <h3>Một Lead, nhiều agent con</h3>
+        <p>Nói hoặc gõ một yêu cầu — Lead (Claude) đọc, phát marker <code style="font-family:var(--mono);font-size:.85em">[DELEGATE]</code> giao việc cho Codex/Gemini/Antigravity/Ollama, rồi tự tổng hợp câu trả lời cuối. Bạn chỉ nói chuyện với một "người", việc bên trong tự chia.</p>
+        <span class="kbd">Claude · Codex · Gemini · Antigravity · Ollama</span>
+      </article>
+
+      <article class="feat wide reveal">
+        <div class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+        <h3>Mission Control — dashboard realtime</h3>
+        <p>Mỗi job agent là một thẻ: <b>đang bận</b>, <b>đang chờ bạn duyệt</b> (viền đỏ nhấp nháy nhẹ, kèm gợi ý "im lặng bao lâu"), hoặc <b>đã xong</b>. Thông báo trình duyệt khi có agent cần chú ý — nhưng chỉ khi bạn không đang nhìn tab đó.</p>
+        <span class="kbd">blocked · working · done · kill / seen tại chỗ</span>
+      </article>
+
+      <article class="feat reveal">
+        <div class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></div>
+        <h3>Voice hai chiều, tuỳ chọn</h3>
+        <p>Giữ nút mic để nói, agent đọc trả lời bằng giọng riêng cho từng vai. Không cấu hình voice thì console vẫn chạy đầy đủ ở dạng gõ chữ.</p>
+      </article>
+
+      <article class="feat reveal">
+        <div class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></div>
+        <h3>System pane</h3>
+        <p>Nếu máy có cài <a href="https://github.com/ducnguyen221/opcos" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline">opcos</a>, panel System hiện luôn danh sách MCP server đã đăng ký + bản đồ công cụ — không cần rời console để tra.</p>
+      </article>
+
+      <article class="feat reveal">
+        <div class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M5 3h9l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M8 12h8"/><path d="M8 16h6"/></svg></div>
+        <h3>Session + context</h3>
+        <p>Nhiều phiên hội thoại song song (tab, đổi tên, tắt/resume), gắn file/folder làm ngữ cảnh cho một instance cụ thể.</p>
+      </article>
+
+      <article class="feat full reveal">
+        <div>
+          <div class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg></div>
+          <h3>Điều phối, không phải hộp đen</h3>
+          <p>Orbit không phải một model mới — nó gọi CLI bạn đã cài (<code style="font-family:var(--mono);font-size:.85em">claude</code>, <code style="font-family:var(--mono);font-size:.85em">codex</code>, <code style="font-family:var(--mono);font-size:.85em">gemini</code>…) bằng chính tài khoản đã đăng nhập trên máy bạn. <b>App không giữ, không đọc, không gửi bất kỳ API key nào</b> — dữ liệu đi tới đâu là theo chính sách của CLI đó. Riêng STT/TTS và engine Ollama chạy hoàn toàn cục bộ.</p>
+        </div>
+        <div class="privacy-tags">
+          <span class="ptag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>App không giữ API key</span>
+          <span class="ptag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>STT/TTS · trên máy</span>
+          <span class="ptag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>Ollama · trên máy</span>
+          <span class="ptag out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><circle cx="12" cy="12" r="10"/></svg>Claude/Codex/Gemini · theo chính sách của họ</span>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section id="cach-hoat-dong">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow"><span class="dot"></span>Cách hoạt động</span>
+      <h2>Từ một câu nói tới câu trả lời tổng hợp</h2>
+      <p>Lead luôn là người quyết định giao việc cho ai; console chỉ lo phần điều phối, theo dõi và hiển thị.</p>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="pipe-wrap reveal">
+      <div class="pipe">
+        <div class="pstep">
+          <span class="pnum">01</span>
+          <h3>Nói / gõ</h3>
+          <p>Giữ mic hoặc gõ thẳng vào ô chat.</p>
+        </div>
+        <div class="pstep">
+          <span class="pnum">02</span>
+          <h3>Lead đọc &amp; phân việc</h3>
+          <p>Phát marker <code style="font-family:var(--mono);font-size:.85em">[DELEGATE]</code> cho 1 hoặc nhiều agent.</p>
+        </div>
+        <div class="pstep">
+          <span class="pnum">03</span>
+          <h3>Spawn CLI headless</h3>
+          <p>Mỗi agent chạy trong tiến trình riêng, stream output sống.</p>
+        </div>
+        <div class="pstep">
+          <span class="pnum">04</span>
+          <h3>Mission Control theo dõi</h3>
+          <p>Máy trạng thái phát hiện blocked/working/done, báo khi cần chú ý.</p>
+        </div>
+        <div class="pstep">
+          <span class="pnum">05</span>
+          <h3>Tổng hợp &amp; trả lời</h3>
+          <p>Lead gộp kết quả, đọc bằng giọng (nếu bật) và hiện transcript.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="cai-dat" class="install">
+  <div class="wrap install-grid">
+    <div class="install-copy reveal">
+      <span class="eyebrow"><span class="dot"></span>Cài đặt</span>
+      <h2 style="margin-top:14px">Chạy được sau vài dòng lệnh</h2>
+      <p>Clone repo, chạy script cài một lần, rồi khởi động. Chỉ cần các CLI agent bạn muốn dùng đã cài + đăng nhập sẵn trên máy — voice là tuỳ chọn.</p>
+      <div class="req">
+        <ul>
+          <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span><span><b>Windows</b> và <b>Python 3.11+</b></span></li>
+          <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span><span>Ít nhất 1 CLI agent đã cài + đăng nhập: <b>claude</b>, <b>codex</b>, <b>gemini</b>…</span></li>
+          <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span><span>Tuỳ chọn: <b>GPU NVIDIA</b> cho voice realtime (faster-whisper)</span></li>
+        </ul>
+      </div>
+      <a class="btn btn-ghost" style="margin-top:24px" href="https://github.com/ducnguyen221/opcos-orbit#readme" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg>
+        Đọc README chi tiết
+      </a>
+    </div>
+
+    <div class="code-card reveal">
+      <div class="code-top">
+        <span class="pv-live" style="gap:6px"><span style="width:11px;height:11px;border-radius:50%;background:#ff5f57;display:inline-block"></span><span style="width:11px;height:11px;border-radius:50%;background:#febc2e;display:inline-block"></span><span style="width:11px;height:11px;border-radius:50%;background:#28c840;display:inline-block"></span></span>
+        <span class="fn">PowerShell</span>
+        <button class="copy-btn" id="copyBtn" type="button" aria-label="Sao chép lệnh cài đặt">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <span class="lbl">Sao chép</span>
+        </button>
+      </div>
+      <div class="code-scroll">
+<pre><code id="installCode"><span class="pr">git</span> clone https://github.com/ducnguyen221/opcos-orbit
+<span class="pr">cd</span> opcos-orbit
+<span class="pr">powershell</span> -ExecutionPolicy Bypass -File install.ps1   <span class="cm"># venv + deps + config.json</span>
+<span class="pr">powershell</span> -ExecutionPolicy Bypass -File run.ps1       <span class="cm"># mở localhost:7788</span></code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="rieng-tu">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow"><span class="dot"></span>Riêng tư &amp; minh bạch</span>
+      <h2>Bạn tự quyết dữ liệu đi đâu</h2>
+      <p>Orbit là lớp điều phối, không phải nơi lưu key hay chặn dữ liệu của bạn. So sánh nhanh với cách làm thủ công thường thấy.</p>
+    </div>
+    <div class="cmp-wrap reveal">
+      <table class="compare">
+        <thead>
+          <tr>
+            <th></th>
+            <th class="us">OpcOS Orbit</th>
+            <th>Nhiều cửa sổ terminal thủ công</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="lbl">Biết agent nào đang chờ duyệt</td>
+            <td class="us"><span class="yes">Thấy ngay, viền đỏ + thông báo</span></td>
+            <td><span class="no">Phải tự bấm qua từng cửa sổ</span></td>
+          </tr>
+          <tr>
+            <td class="lbl">API key</td>
+            <td class="us"><span class="yes">App không giữ, không đọc</span></td>
+            <td>Tuỳ cách bạn tự quản lý</td>
+          </tr>
+          <tr>
+            <td class="lbl">Voice hai chiều</td>
+            <td class="us"><span class="yes">Có, tuỳ chọn bật/tắt</span></td>
+            <td><span class="no">Không có sẵn</span></td>
+          </tr>
+          <tr>
+            <td class="lbl">Chi phí sử dụng</td>
+            <td class="us">Miễn phí (Orbit) + theo CLI/engine bạn chọn</td>
+            <td>Như nhau — chỉ khác cách nhìn</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="legal reveal" style="margin-top:26px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+      <p><b>Lưu ý:</b> Orbit spawn CLI agent thật (Claude Code, Codex, Gemini…) — dữ liệu bạn gửi qua các CLI này tuân theo chính sách riêng của từng nhà cung cấp, Orbit không can thiệp hay lưu lại. Chỉ STT/TTS và engine Ollama chạy 100% cục bộ.</p>
+    </div>
+  </div>
+</section>
+
+<section class="final">
+  <div class="wrap reveal">
+    <span class="eyebrow" style="justify-content:center"><span class="dot"></span>Sẵn sàng dùng thử</span>
+    <h2 style="margin-top:14px">Ngừng đoán agent nào đang làm gì</h2>
+    <p>Mã nguồn mở, giấy phép MIT. Cài trong vài phút, điều phối tổ đội agent của bạn từ một chỗ.</p>
+    <div class="hero-cta">
+      <a class="btn btn-primary" href="#cai-dat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13"/><path d="m7 12 5 5 5-5"/><path d="M5 21h14"/></svg>
+        Cài đặt
+      </a>
+      <a class="btn btn-ghost" href="https://github.com/ducnguyen221/opcos-orbit" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.09.68-.22.68-.49 0-.24-.01-.87-.01-1.71-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.49-1.11-1.49-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.36-2.22-.26-4.55-1.14-4.55-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05a9.4 9.4 0 0 1 2.5-.34c.85 0 1.71.12 2.5.34 1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9 0 1.37-.01 2.48-.01 2.82 0 .27.18.59.69.49A10.02 10.02 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="site">
+  <div class="wrap foot">
+    <div>
+      <a class="brand" href="#top"><img src="logo.png" alt="OpcOS Orbit logo">OpcOS Orbit</a>
+      <p class="foot-tag">Console mã nguồn mở điều phối multi-agent bằng giọng nói. Chạy trên máy bạn, dùng CLI bạn đã có.</p>
+    </div>
+    <div class="foot-links">
+      <div class="foot-col">
+        <b>Sản phẩm</b>
+        <a href="#tinh-nang">Tính năng</a>
+        <a href="#cach-hoat-dong">Cách hoạt động</a>
+        <a href="#cai-dat">Cài đặt</a>
+        <a href="#rieng-tu">Riêng tư</a>
+      </div>
+      <div class="foot-col">
+        <b>Tài nguyên</b>
+        <a href="https://github.com/ducnguyen221/opcos-orbit#readme" target="_blank" rel="noopener">README</a>
+        <a href="https://github.com/ducnguyen221/opcos-orbit" target="_blank" rel="noopener">Repo GitHub</a>
+        <a href="https://github.com/ducnguyen221/opcos" target="_blank" rel="noopener">opcos (harness)</a>
+        <a href="https://ducnguyen.vn" target="_blank" rel="noopener">Trang tác giả</a>
+      </div>
+    </div>
+  </div>
+  <div class="wrap foot-bottom">
+    <span class="lic">MIT License</span>
+    <span>© 2026 Duc Nguyen · <a href="https://ducnguyen.vn" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">ducnguyen.vn</a></span>
+  </div>
+</footer>
+
+<script>
+  (function(){
+    var h = document.getElementById('siteHeader');
+    var onScroll = function(){ h.classList.toggle('scrolled', window.scrollY > 8); };
+    window.addEventListener('scroll', onScroll, {passive:true});
+    onScroll();
+  })();
+
+  (function(){
+    var btn = document.getElementById('copyBtn');
+    var codeEl = document.getElementById('installCode');
+    if(!btn || !codeEl) return;
+    var label = btn.querySelector('.lbl');
+    var cmd = [
+      'git clone https://github.com/ducnguyen221/opcos-orbit',
+      'cd opcos-orbit',
+      'powershell -ExecutionPolicy Bypass -File install.ps1',
+      'powershell -ExecutionPolicy Bypass -File run.ps1'
+    ].join('\n');
+    function flash(ok){
+      btn.classList.toggle('done', ok);
+      label.textContent = ok ? 'Đã chép' : 'Lỗi, chép tay';
+      setTimeout(function(){ btn.classList.remove('done'); label.textContent = 'Sao chép'; }, 1900);
+    }
+    function fallback(){
+      try{
+        var ta = document.createElement('textarea');
+        ta.value = cmd; ta.style.position='fixed'; ta.style.opacity='0';
+        document.body.appendChild(ta); ta.select();
+        var ok = document.execCommand('copy');
+        document.body.removeChild(ta); flash(ok);
+      }catch(e){ flash(false); }
+    }
+    btn.addEventListener('click', function(){
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(cmd).then(function(){ flash(true); }, fallback);
+      } else { fallback(); }
+    });
+  })();
+
+  (function(){
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var els = document.querySelectorAll('.reveal');
+    if(reduce || !('IntersectionObserver' in window)){
+      els.forEach(function(el){ el.classList.add('in'); });
+      return;
+    }
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if(en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target); }
+      });
+    }, {threshold:0.12, rootMargin:'0px 0px -8% 0px'});
+    els.forEach(function(el){ io.observe(el); });
+  })();
+</script>
+<script>
+(function(){
+  var c=document.getElementById('netbg'); if(!c) return;
+  var ctx=c.getContext('2d');
+  var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var darkQ=matchMedia('(prefers-color-scheme: dark)');
+  var dpr=Math.min(window.devicePixelRatio||1,2), W=0, H=0, pts=[], raf=0;
+  var mouse={x:-9999,y:-9999};
+  function col(a){ return (darkQ.matches?'rgba(140,150,255,':'rgba(91,109,246,')+a+')'; }
+  function resize(){
+    W=window.innerWidth; H=window.innerHeight;
+    c.width=Math.floor(W*dpr); c.height=Math.floor(H*dpr);
+    c.style.width=W+'px'; c.style.height=H+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    var n=Math.min(70, Math.max(22, Math.floor(W*H/26000)));
+    pts=Array.from({length:n},function(){return {
+      x:Math.random()*W, y:Math.random()*H,
+      vx:(Math.random()-0.5)*0.28, vy:(Math.random()-0.5)*0.28
+    };});
+    if(reduce) draw();
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    var i,j;
+    if(!reduce){
+      for(i=0;i<pts.length;i++){ var p=pts[i]; p.x+=p.vx; p.y+=p.vy;
+        if(p.x<0||p.x>W)p.vx*=-1; if(p.y<0||p.y>H)p.vy*=-1; }
+    }
+    for(i=0;i<pts.length;i++){
+      for(j=i+1;j<pts.length;j++){
+        var a=pts[i], b=pts[j], dx=a.x-b.x, dy=a.y-b.y, d=Math.sqrt(dx*dx+dy*dy);
+        if(d<150){ ctx.strokeStyle=col((0.13*(1-d/150)).toFixed(3)); ctx.lineWidth=1;
+          ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+      }
+      var mx=pts[i].x-mouse.x, my=pts[i].y-mouse.y, md=Math.sqrt(mx*mx+my*my);
+      if(md<170){ ctx.strokeStyle=col((0.18*(1-md/170)).toFixed(3)); ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(pts[i].x,pts[i].y); ctx.lineTo(mouse.x,mouse.y); ctx.stroke(); }
+    }
+    for(i=0;i<pts.length;i++){ ctx.fillStyle=col(0.5); ctx.beginPath();
+      ctx.arc(pts[i].x,pts[i].y,1.5,0,6.2832); ctx.fill(); }
+    if(!reduce) raf=requestAnimationFrame(draw);
+  }
+  window.addEventListener('resize',resize,{passive:true});
+  window.addEventListener('mousemove',function(e){mouse.x=e.clientX;mouse.y=e.clientY;},{passive:true});
+  window.addEventListener('mouseout',function(){mouse.x=-9999;mouse.y=-9999;});
+  resize();
+  if(!reduce) draw();
+})();
+</script>
+</body>
+</html>
