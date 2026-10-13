@@ -8,3 +8,6 @@ config.json
 !assets/voices/*.wav
 *.mp3
 .env
+.pytest_cache/
+.server.pid
+*.log
