@@ -90,6 +90,15 @@
             <p class="hint">Trạng thái kiểu herdr: <span class="dot d-blocked"></span>blocked (chờ bạn) ·
               <span class="dot d-working"></span>working · <span class="dot d-done"></span>done chưa xem ·
               <span class="dot d-idle"></span>đã xem. Thông báo trình duyệt bật khi có job blocked.</p>
+            <h2 class="bus-h">🔀 Trao đổi giữa agent</h2>
+            <div id="busFeed" class="bus-feed"></div>
+            <div class="create-row bus-send">
+              <input id="busText" type="text" placeholder="nhắn 1 agent (chọn dưới)…" autocomplete="off" />
+              <select id="busTo"></select>
+              <button id="busSendBtn">Gửi</button>
+            </div>
+            <p class="hint">Bus = hộp thư liên-agent (distill herdr). Lead/agent nhắn nhau bằng
+              <code>[MSG tên:"…"]</code> (tên <code>all</code> = mọi agent); tin nạp vào prompt agent đó ở lượt sau.</p>
           </section>
 
           <section id="systemPanel" class="panel">

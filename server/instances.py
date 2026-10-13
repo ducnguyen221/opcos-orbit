@@ -13,7 +13,7 @@ class InstanceStore:
         return [Instance(**{k:v for k,v in i.items() if k in Instance.__dataclass_fields__}) for i in self.raw["instances"]]
     def _save(self):
         json.dump(self.raw, open(self.path,"w",encoding="utf-8"), ensure_ascii=False, indent=1)
-    def create(self, agent: AgentDef, engine=None, voice="") -> Instance:
+    def create(self, agent: AgentDef, engine=None, voice="my-voice") -> Instance:
         base = _slug(agent.name)
         existing = {i["name"] for i in self.raw["instances"]}
         # Suffix = max suffix hiện có + 1 (KHÔNG tái dùng số đã xóa) + guard chống trùng.

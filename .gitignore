@@ -1,11 +1,10 @@
 .venv/
 __pycache__/
-.pytest_cache/
 workspace/
 sessions/
 config.json
-.server.pid
 *.pdf
 *.wav
+!assets/voices/*.wav
 *.mp3
 .env

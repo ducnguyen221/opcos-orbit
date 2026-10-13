@@ -40,7 +40,7 @@ AGENT_DIRS = ["~/.opcos/plugins", "~/.claude/agents"]
 class CreateInstanceBody(BaseModel):
     agent_name: str
     engine: str | None = None
-    voice: str = ""
+    voice: str = "my-voice"
 
 
 class RenameInstanceBody(BaseModel):
@@ -246,6 +246,10 @@ if os.environ.get("AGENT_CONSOLE_DEMO_JOBS") == "1":
     _j3.feed_line("KẾT QUẢ: đã tổng hợp 5 pattern chính"); _j3.finish(0)
     _j4 = _dj.create("draft-1", "ollama", "Dịch tóm tắt sang tiếng Việt")
     _j4.feed_line("connection refused"); _j4.finish(1, "ollama không chạy")
+    from server.bus import BUS as _bus
+    _bus.post("lead-1", "coder-1", "researcher-1 vừa gửi 5 pattern, dùng cái #2 nhé")
+    _bus.post("researcher-1", "coder-1", "pattern #2 = ring-buffer tail, xem note bus")
+    _bus.post("coder-1", "all", "đã áp pattern #2 vào jobs.py, mời review")
 
 @app.get("/api/jobs")
 def api_jobs():
@@ -278,6 +282,29 @@ def api_seen_job(job_id: int):
 def api_seen_all():
     from server import jobs
     return {"ok": True, "marked": jobs.mark_all_seen()}
+
+
+class BusPostBody(BaseModel):
+    sender: str = "user"
+    recipient: str = "all"
+    text: str
+
+
+@app.get("/api/bus")
+def api_bus():
+    """Feed trao đổi agent-to-agent (socket bus) cho UI."""
+    from server.bus import BUS
+    return {"messages": BUS.recent()}
+
+
+@app.post("/api/bus")
+def api_bus_post(body: BusPostBody):
+    """Bơm 1 tin vào bus (từ UI/thủ công) — vd user gửi ghi chú cho 1 agent."""
+    from server.bus import BUS
+    m = BUS.post(body.sender, body.recipient, body.text)
+    if m is None:
+        raise HTTPException(status_code=400, detail="text rỗng")
+    return {"ok": True, "message": m.to_dict()}
 
 
 @app.get("/api/system")

@@ -18,7 +18,7 @@ _SYNTH_SNIPPET = (
     "print(ov.synthesize_speech(text, out, voice_profile=profile, language='Vietnamese'))\n"
 )
 
-def synthesize(text: str, profile: str = "") -> str:
+def synthesize(text: str, profile: str = "my-voice") -> str:
     out = os.path.join(tempfile.gettempdir(), f"ac_{abs(hash(text))}.wav")
     subprocess.run(
         [OV_PY, "-c", _SYNTH_SNIPPET, text, out, profile],

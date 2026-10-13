@@ -97,8 +97,61 @@
     }).join("");
   }
 
+  // ── Bus feed (socket agent-to-agent) ──────────────────────────────────────
+  var busFeed = document.getElementById("busFeed");
+  var busTo = document.getElementById("busTo");
+  var busText = document.getElementById("busText");
+  var busSendBtn = document.getElementById("busSendBtn");
+  var lastBusId = 0;
+
+  function fmtTime(ts) {
+    try { return new Date(ts * 1000).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }); }
+    catch (e) { return ""; }
+  }
+
+  function renderBus(msgs) {
+    if (!busFeed) return;
+    if (!msgs.length) { busFeed.innerHTML = '<p class="empty">chưa có tin trao đổi</p>'; return; }
+    busFeed.innerHTML = msgs.map(function (m) {
+      return '<div class="bus-msg' + (m.consumed ? " consumed" : "") + '">' +
+        '<span class="bus-from">' + esc(m.sender) + "</span>" +
+        '<span class="bus-arrow">→</span>' +
+        '<span class="bus-to">' + esc(m.recipient) + "</span>" +
+        '<span class="bus-txt">' + esc(m.text) + "</span>" +
+        '<span class="bus-time">' + fmtTime(m.ts) + "</span></div>";
+    }).join("");
+    var last = msgs[msgs.length - 1];
+    if (last && last.id !== lastBusId) { lastBusId = last.id; busFeed.scrollTop = busFeed.scrollHeight; }
+  }
+
+  function tickBus() {
+    fetch("/api/bus").then(function (r) { return r.json(); })
+      .then(function (d) { renderBus(d.messages || []); }).catch(function () {});
+  }
+
+  function fillBusTo() {
+    if (!busTo) return;
+    fetch("/api/instances").then(function (r) { return r.json(); }).then(function (insts) {
+      busTo.innerHTML = '<option value="all">all</option>' +
+        (insts || []).map(function (i) { return '<option value="' + esc(i.name) + '">' + esc(i.name) + "</option>"; }).join("");
+    }).catch(function () {});
+  }
+
+  if (busSendBtn) busSendBtn.addEventListener("click", function () {
+    var text = (busText.value || "").trim();
+    if (!text) return;
+    fetch("/api/bus", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sender: "user", recipient: busTo ? busTo.value : "all", text: text }),
+    }).then(function () { busText.value = ""; tickBus(); });
+  });
+  if (busText) busText.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); busSendBtn.click(); }
+  });
+
   function tick() {
     fetch("/api/jobs").then(function (r) { return r.json(); }).then(render).catch(function () {});
+    tickBus();
   }
 
   if (jobList) {
@@ -114,6 +167,7 @@
     });
     setInterval(tick, POLL_MS);
     tick();
+    fillBusTo();
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }

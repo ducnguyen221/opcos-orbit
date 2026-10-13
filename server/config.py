@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 class Instance:
     name: str
     engine: str            # claude | codex | gemini | agy | ollama
-    voice: str = ""
+    voice: str = "my-voice"
     role: str = "Assistant"
     agent_md: str | None = None
     session_id: str = ""

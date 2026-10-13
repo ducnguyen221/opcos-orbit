@@ -433,6 +433,27 @@ select:focus, input:focus { outline: none; border-color: var(--accent); box-shad
 .mcp-live-row.down .mcp-live-dot { background: #e5484d; box-shadow: 0 0 6px #e5484d88; }
 .mcp-live-row .mcp-live-st { margin-left: auto; color: var(--muted); font-size: 11px; }
 .mcp-live-row.down .mcp-live-st { color: #e5484d; }
+.bus-h { margin-top: 14px; }
+.bus-feed { max-height: 180px; overflow-y: auto; margin-bottom: 8px; }
+.bus-msg {
+  display: flex; align-items: baseline; gap: 6px; padding: 4px 0;
+  border-bottom: 1px solid var(--border); font-size: 12px; flex-wrap: wrap;
+}
+.bus-msg.consumed { opacity: 0.5; }
+.bus-from { font-weight: 600; color: var(--accent); }
+.bus-arrow { color: var(--muted); }
+.bus-to {
+  color: var(--text); font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
+  padding: 0 4px; border-radius: 5px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.bus-txt { flex: 1 1 100%; color: var(--muted); padding-left: 2px; }
+.bus-time { margin-left: auto; color: var(--muted); font-size: 10px; }
+.bus-send input { flex: 1; }
+.bus-send select {
+  padding: 0.3rem 0.5rem; border-radius: 6px; font-size: 0.8rem;
+  border: 1px solid var(--border); background: #0f1115; color: var(--text);
+}
 @media (prefers-reduced-motion: reduce) {
   .job-row.st-blocked, .dot.d-working { animation: none; }
 }
