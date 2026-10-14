@@ -1,5 +1,14 @@
+import logging
 import subprocess
 from server.config import Instance
+
+log = logging.getLogger(__name__)
+DANGEROUS_FLAG = "--dangerously-skip-permissions"
+
+def _wants_dangerous(inst: Instance) -> bool:
+    return (inst.engine == "agy" and getattr(inst, "skip_permissions", False) is True
+            and _level(inst) == "full")
+
 
 def build_command(inst: Instance, prompt: str) -> list[str]:
     role_sys = f"Bạn đóng vai {inst.role} trong một nhóm agent do Lead điều phối. Trả lời ngắn gọn, đúng vai."
@@ -14,9 +23,13 @@ def build_command(inst: Instance, prompt: str) -> list[str]:
     if inst.engine == "gemini":
         return ["gemini", "-p", f"[{inst.role}] {prompt}"]
     if inst.engine == "agy":
-        # Antigravity CLI (Google login free, không cần API key). Headless cần
-        # --dangerously-skip-permissions (không sẽ treo chờ duyệt tool). Session = --conversation.
-        cmd = ["agy", "-p", f"[{inst.role}] {prompt}", "--dangerously-skip-permissions"]
+        # Antigravity CLI (Google login free, không cần API key). Headless thiếu
+        # --dangerously-skip-permissions thì có thể treo chờ duyệt tool (timeout sẽ kill).
+        # AN TOÀN LÀ MẶC ĐỊNH: cờ chỉ thêm khi opt-in rõ (skip_permissions) VÀ autonomy=full.
+        cmd = ["agy", "-p", f"[{inst.role}] {prompt}"]
+        if _wants_dangerous(inst):
+            log.warning("agy %s chạy với %s (autonomy=full + skip_permissions)", inst.name, DANGEROUS_FLAG)
+            cmd.append(DANGEROUS_FLAG)
         conv = getattr(inst, "session_id", "")
         if conv:
             cmd += ["--conversation", conv]
@@ -100,9 +113,23 @@ def run_agent(inst: Instance, prompt: str, timeout: int = 120) -> str:
     from server import jobs
     job = jobs.create(inst.name, inst.engine, prompt,
                       session_id=getattr(inst, "session_id", None))
+    # CỔNG TỰ TRỊ ở biên side-effect, TRƯỚC khi spawn/gọi engine. Fail-closed.
+    action = "write" if _wants_dangerous(inst) else "query"
+    try:
+        allowed = check_autonomy(inst, action) is True
+    except Exception:
+        allowed = False
+    if not allowed:
+        msg = f"autonomy '{_level(inst)}' không cho phép action '{action}'"
+        job.finish(1, msg)
+        return f"[ERROR] {inst.name}: {msg}"
     if inst.engine == "ollama":
         return _run_ollama(inst, prompt, timeout, job)
-    cmd = build_command(inst, prompt)
+    try:
+        cmd = build_command(inst, prompt)
+    except Exception as e:
+        job.finish(1, str(e))
+        return f"[ERROR] {inst.name}: {e}"
     real = _resolve(cmd[0]) + cmd[1:]
     p = None
     try:
@@ -129,8 +156,19 @@ def run_agent(inst: Instance, prompt: str, timeout: int = 120) -> str:
     finally:
         if p: RUNNING.pop(p.pid, None)
 
+_LEVELS = ("suggest", "auto-safe", "full")
+
+
+def _level(inst) -> str:
+    """Mức tự trị hợp lệ; thiếu/None/giá trị lạ => 'suggest' (fail-closed)."""
+    level = getattr(inst, "autonomy", None)
+    return level if isinstance(level, str) and level in _LEVELS else "suggest"
+
+
 def check_autonomy(inst: Instance, action: str) -> bool:
-    level = getattr(inst, "autonomy", "suggest")
+    if not isinstance(action, str):
+        return False
+    level = _level(inst)
     if level == "full":
         return True
     if level == "auto-safe":

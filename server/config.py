@@ -11,6 +11,7 @@ class Instance:
     session_id: str = ""
     autonomy: str = "suggest"
     model: str = ""        # chỉ dùng cho engine ollama (mặc định qwen2.5:7b nếu rỗng)
+    skip_permissions: bool = False  # opt-in rõ ràng; agy chỉ nhận cờ bỏ-qua-quyền khi autonomy=full
 
 @dataclass
 class Config:

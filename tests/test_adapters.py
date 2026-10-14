@@ -31,7 +31,7 @@ def test_build_command_agy():
     inst = Instance(name="researcher-1", engine="agy", role="Researcher")
     cmd = build_command(inst, "tìm X")
     assert cmd[0] == "agy" and "-p" in cmd
-    assert "--dangerously-skip-permissions" in cmd
+    assert "--dangerously-skip-permissions" not in cmd   # an toàn là mặc định (xem test_autonomy_gate)
     assert any("Researcher" in c for c in cmd)
     # session
     inst.session_id = "conv123"
