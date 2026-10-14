@@ -37,7 +37,8 @@ REMOTE_MANUAL_HINT = (
     "hoặc trỏ ngrok/tailscale vào cổng 7788 của OpcOS Orbit thủ công."
 )
 
-AGENT_DIRS = ["~/.opcos/plugins", "~/.claude/agents"]
+AGENT_DIRS = [os.path.join(os.environ.get("OPCOS_ROOT") or os.path.expanduser("~/OpcOS"), "system", "plugins"),
+              "~/.claude/agents"]
 
 
 class CreateInstanceBody(BaseModel):
@@ -99,6 +100,7 @@ def list_agents():
 
 @app.post("/api/agents/scan")
 def scan_agents(body: ScanPathBody):
+    _require_allowed_path(body.path)
     return [a.__dict__ for a in scan_folder_for_agents(body.path)]
 
 

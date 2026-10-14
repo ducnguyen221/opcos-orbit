@@ -158,3 +158,12 @@ def test_cmd_shim_rejects_metacharacters_without_spawn(monkeypatch):
                                  'x" & calc & "', timeout=5)
     assert out.startswith("[ERROR]")
     popen.assert_not_called()
+
+
+# (6) /api/agents/scan cũng phải qua allowlist đường dẫn
+def test_agents_scan_rejects_outside_roots(tmp_path, monkeypatch):
+    client, _, _ = _make(tmp_path, monkeypatch, INST)
+    outside = tmp_path.parent / "ngoai_allowlist"
+    outside.mkdir(exist_ok=True)
+    r = client.post("/api/agents/scan", json={"path": str(outside)})
+    assert r.status_code == 403
