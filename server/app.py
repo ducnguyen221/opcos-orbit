@@ -11,8 +11,11 @@ from server.agent_library import discover_agents, scan_folder_for_agents
 from server.instances import InstanceStore
 from server.context_manager import scan_folder, save_upload, route_context
 from server.session import SessionManager
+from server import security
+from server.adapters import check_autonomy
 
 app = FastAPI()
+app.add_middleware(security.LocalOnlyMiddleware)
 CONFIG_PATH = os.environ.get(
     "AGENT_CONSOLE_CONFIG",
     os.path.join(os.path.dirname(__file__), "..", "config.json"),
@@ -130,6 +133,16 @@ def rename_instance(name: str, body: RenameInstanceBody):
 def update_instance(name: str, body: UpdateInstanceBody):
     """Sửa role/engine/model/autonomy/voice từ UI (ép duy nhất 1 Lead)."""
     store = InstanceStore(CONFIG_PATH)
+    if body.autonomy is not None:
+        cur = next((i for i in store.list() if i.name == name), None)
+        if cur is None:
+            raise HTTPException(status_code=404, detail="instance not found")
+        verdict = security.autonomy_change_allowed(cur.autonomy, body.autonomy)
+        if verdict is None:
+            raise HTTPException(status_code=400, detail="autonomy không hợp lệ")
+        if verdict is False:
+            raise HTTPException(status_code=403,
+                                detail="không nâng autonomy qua API; sửa file cấu hình cục bộ")
     updated = store.update(name, role=body.role, engine=body.engine,
                            model=body.model, autonomy=body.autonomy, voice=body.voice)
     if updated is None:
@@ -143,8 +156,14 @@ def delete_instance(name: str):
     store.remove(name)
     return {"ok": True}
 
+def _require_allowed_path(path: str):
+    if not security.path_allowed(path, security.allowed_roots(UPLOAD_DIR)):
+        raise HTTPException(status_code=403, detail="đường dẫn ngoài thư mục được phép")
+
+
 @app.post("/api/context/scan")
 def scan_context(body: ScanPathBody):
+    _require_allowed_path(body.path)
     return scan_folder(body.path)
 
 
@@ -160,6 +179,7 @@ def attach_context(body: AttachBody):
     store = InstanceStore(CONFIG_PATH)
     if not any(i.name == body.instance for i in store.list()):
         raise HTTPException(status_code=404, detail="instance not found")
+    _require_allowed_path(body.path)
     result = route_context(body.path)
     return {"instance": body.instance, "path": body.path, **result}
 
@@ -217,6 +237,10 @@ def resume_session(sid: str):
 @app.post("/api/remote/toggle")
 def remote_toggle(body: RemoteToggleBody):
     action = "on" if body.on else "off"
+    # remote-control mở đường điều khiển từ xa => cần Lead ở mức full (fail-closed).
+    lead = next((i for i in InstanceStore(CONFIG_PATH).list() if i.role == "Lead"), None)
+    if lead is None or not check_autonomy(lead, "write"):
+        raise HTTPException(status_code=403, detail="remote-control cần Lead autonomy=full")
     try:
         from server.adapters import _resolve
         result = subprocess.run(
@@ -435,6 +459,9 @@ async def ws(sock: WebSocket):
             await sock.send_text(json.dumps({"type": "say", "audio_url": f"/audio?p={audio}"}))
 
 @app.get("/audio")
-def audio(p: str): return FileResponse(p, media_type="audio/wav")
+def audio(p: str):
+    if not security.tts_audio_allowed(p):
+        raise HTTPException(status_code=403, detail="chỉ phục vụ file âm thanh do TTS tạo")
+    return FileResponse(p, media_type="audio/wav")
 
 app.mount("/", StaticFiles(directory=os.path.join(os.path.dirname(__file__),"..","web"), html=True))

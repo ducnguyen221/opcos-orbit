@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
     cfg = tmp_path / "config.json"
-    cfg.write_text(json.dumps({"instances": [], "settings": {}}), encoding="utf-8")
+    cfg.write_text(json.dumps({"instances": [{"name": "lead-1", "engine": "claude", "role": "Lead", "autonomy": "full"}], "settings": {}}), encoding="utf-8")
     monkeypatch.setenv("AGENT_CONSOLE_CONFIG", str(cfg))
     sessions_dir = tmp_path / "sessions"
     monkeypatch.setenv("AGENT_CONSOLE_SESSIONS_DIR", str(sessions_dir))

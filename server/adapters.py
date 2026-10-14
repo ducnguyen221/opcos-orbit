@@ -1,8 +1,11 @@
 import logging
+import os
 import subprocess
 from server.config import Instance
 
 log = logging.getLogger(__name__)
+import re
+_CMD_META = re.compile('[&|<>^%"!\r\n]')
 DANGEROUS_FLAG = "--dangerously-skip-permissions"
 
 def _wants_dangerous(inst: Instance) -> bool:
@@ -46,6 +49,11 @@ def _resolve(name: str) -> list:
         return [name]
     low = p.lower()
     if low.endswith((".cmd", ".bat")):
+        # Ưu tiên .ps1 cùng tên (npm tạo sẵn): powershell -File nhận argv nguyên vẹn,
+        # còn cmd /c diễn giải & | ^ % " trong prompt => chèn lệnh.
+        ps1 = p[:-4] + ".ps1"
+        if os.path.isfile(ps1):
+            return ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps1]
         return ["cmd", "/c", p]
     if low.endswith(".ps1"):
         return ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", p]
@@ -131,6 +139,10 @@ def run_agent(inst: Instance, prompt: str, timeout: int = 120) -> str:
         job.finish(1, str(e))
         return f"[ERROR] {inst.name}: {e}"
     real = _resolve(cmd[0]) + cmd[1:]
+    if real[:2] == ["cmd", "/c"] and any(_CMD_META.search(a) for a in real[3:]):
+        msg = "prompt chứa ký tự đặc biệt của cmd.exe (& | < > ^ % \" !) — từ chối chạy qua shim .cmd"
+        job.finish(1, msg)
+        return f"[ERROR] {inst.name}: {msg}"
     p = None
     try:
         # stderr GỘP vào stdout để reader thread thấy cả permission-prompt in ra stderr

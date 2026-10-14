@@ -12,6 +12,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("AGENT_CONSOLE_CONFIG", str(cfg))
     upload_dir = tmp_path / "uploads"
     monkeypatch.setenv("AGENT_CONSOLE_UPLOAD_DIR", str(upload_dir))
+    monkeypatch.setenv("AGENT_CONSOLE_ALLOWED_ROOTS", str(tmp_path))
     import importlib
     import server.app as app_module
     importlib.reload(app_module)
