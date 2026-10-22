@@ -63,10 +63,9 @@ Hai cạm bẫy đã trả giá 1 tiếng ngày 09/08/2026:
 
 ## Việc còn treo khác (từ memory `opcos-orbit`)
 
-- **RESYNC public** `~/Code/opcos-orbit` (remote `github.com/ducnguyen221/opcos-orbit`, HEAD `b2af659`):
-  copy `server/ web/ tests/` từ private sang, **re-neutralize default `"my-voice"` → `""`** ở đúng 5 file
-  `server/`: `app.py:43 · config.py:8 · instances.py:16 · tts.py:21 · voice_setup.py`.
-  `library.js:58` và tests **GIỮ** `"my-voice"` (là nhãn, không phải secret). Rồi pytest → commit →
-  **PUSH là outward-facing, phải hỏi người**.
+- **Bản công khai** `github.com/ducnguyen221/opcos-orbit` (remote `origin`, nhánh mặc định `main`): mặc định giọng
+  đã trung hoà về `""` ở `app.py · config.py · instances.py · tts.py · voice_setup.py · web/library.js`
+  (mẫu giọng cá nhân `assets/voices/my-voice.*` không theo dõi bởi git); tests giữ `"my-voice"` làm nhãn.
+  Muốn đồng bộ lên bản công khai: pytest → commit → **PUSH là outward-facing, phải hỏi người**.
 - Dogfood UI mới bằng ảnh (lần trước playwright ngắt giữa chừng, mới verify được chức năng).
 - UAT delegate LIVE qua Lead + test mic voice — cần người, không tự làm được.

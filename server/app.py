@@ -12,6 +12,7 @@ from server.instances import InstanceStore
 from server.context_manager import scan_folder, save_upload, route_context
 from server.session import SessionManager
 from server import security
+from server.paths import OPCOS_ROOT
 from server.adapters import check_autonomy
 
 app = FastAPI()
@@ -37,14 +38,14 @@ REMOTE_MANUAL_HINT = (
     "hoặc trỏ ngrok/tailscale vào cổng 7788 của OpcOS Orbit thủ công."
 )
 
-AGENT_DIRS = [os.path.join(os.environ.get("OPCOS_ROOT") or os.path.expanduser("~/OpcOS"), "system", "plugins"),
+AGENT_DIRS = [os.path.join(OPCOS_ROOT, "system", "plugins"),
               "~/.claude/agents"]
 
 
 class CreateInstanceBody(BaseModel):
     agent_name: str
     engine: str | None = None
-    voice: str = "my-voice"
+    voice: str = ""
 
 
 class RenameInstanceBody(BaseModel):

@@ -11,7 +11,8 @@ hiện transcript trực tiếp trên trình duyệt. Chạy trên nền [opcos]
 ## Kiến trúc
 
 - **Backend:** FastAPI + WebSocket (Python), cùng tiến trình với STT (faster-whisper)
-  và gọi TTS qua OmniVoice (`~/.tts/omnivoice`).
+  và gọi TTS qua OmniVoice (thư mục mặc định `~/.tts/omnivoice`, đổi bằng biến môi trường
+  `OMNIVOICE_DIR`; gốc OpcOS mặc định `~/OpcOS`, đổi bằng `OPCOS_ROOT` — xem `server/paths.py`).
 - **Orchestrator:** "Lead điều phối" — Lead (Claude) đọc transcript, phát ra marker
   `[DELEGATE inst:"task"]` để giao việc cho instance khác, hoặc `[SAY: ...]` khi đã
   có câu trả lời cuối, hoặc `[ASK: ...]` khi cần hỏi lại người dùng.
@@ -28,8 +29,8 @@ hiện transcript trực tiếp trên trình duyệt. Chạy trên nền [opcos]
 ## Cài đặt
 
 Yêu cầu: Python 3.11+, các CLI đã cài + đăng nhập sẵn (chọn CLI nào dùng): `claude`,
-`codex`, `gemini`/`agy`. **OmniVoice** (`~/.tts/omnivoice`) dùng cho Voice Studio/TTS —
-tuỳ chọn (tắt giọng vẫn dùng được console ở dạng text-only).
+`codex`, `gemini`/`agy`. **OmniVoice** (mặc định `~/.tts/omnivoice`, hoặc thư mục trong `OMNIVOICE_DIR`)
+dùng cho Voice Studio/TTS — tuỳ chọn (tắt giọng vẫn dùng được console ở dạng text-only).
 
 ```powershell
 .\install.ps1
@@ -42,7 +43,7 @@ Script sẽ:
    (file `config.json` KHÔNG được commit — chứa cấu hình thật của bạn).
 4. Kiểm tra `claude` / `codex` / `gemini` có trong PATH không, và in hướng dẫn
    xác thực nếu thiếu.
-5. Kiểm tra `~/.tts/omnivoice/.venv` — nếu thiếu, tự copy + chạy
+5. Kiểm tra `.venv` trong thư mục OmniVoice (mặc định `~/.tts/omnivoice`, hoặc `OMNIVOICE_DIR`) — nếu thiếu, tự copy + chạy
    `assets/omnivoice-install.ps1` (best-effort, không fail cứng cả script nếu thiếu GPU).
 
 ## Chạy

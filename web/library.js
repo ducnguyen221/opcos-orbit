@@ -55,7 +55,7 @@ async function createInstance() {
     await fetchJSON("/api/instances", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ agent_name: agent.name, engine, voice: "my-voice" }),
+      body: JSON.stringify({ agent_name: agent.name, engine, voice: "" }),
     });
     await loadInstances();
   } finally {

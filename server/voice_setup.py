@@ -1,8 +1,8 @@
 """Restore bundled voice profiles (assets/voices/*) vào thư mục voices của OmniVoice.
 
-Dùng khi install (install.ps1) hoặc lần chạy đầu tiên: bundle my-voice.{wav,txt}
-+ _default.txt đi theo repo agent-console để máy khác cũng có sẵn giọng default,
-không cần clone lại thủ công.
+Tuỳ chọn: mẫu giọng cá nhân (*.wav + *.txt) KHÔNG được git theo dõi; nếu có thì đặt tại
+assets/voices/ (vd my-voice.wav + my-voice.txt) trước khi chạy install.ps1 để máy này
+có sẵn giọng đó. Thiếu thì bước này không làm gì (no-op an toàn).
 """
 import os
 import shutil
@@ -32,7 +32,7 @@ def restore_bundled_voices(assets_dir: str, omni_voices_dir: str) -> list:
     return restored
 
 
-def set_bundled_default(name: str = "my-voice") -> str:
+def set_bundled_default(name: str = "") -> str:
     """Gọi qua venv OmniVoice để set default = name (best-effort, không raise ra ngoài)."""
     from server import voices
 
@@ -48,4 +48,4 @@ if __name__ == "__main__":
     got = restore_bundled_voices(ASSETS_VOICES_DIR, OV_VOICES_DIR)
     print(f"Restored voices: {got}")
     if "--set-default" in sys.argv:
-        print(set_bundled_default("my-voice"))
+        print(set_bundled_default(""))
