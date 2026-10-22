@@ -14,3 +14,7 @@ config.json
 
 # Giong mau ca nhan: o lai tren dia, khong theo doi (SPR-27)
 assets/voices/my-voice.*
+
+# Ke hoach/spec noi bo: ban giu o OpcOS, khong dua len repo cong khai (SPR-27)
+docs/plans/
+docs/superpowers/
