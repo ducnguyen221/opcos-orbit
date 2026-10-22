@@ -4,7 +4,7 @@
 > Đặt ở repo thay vì memory vì **memory của Claude gắn theo thư mục làm việc** — phiên mở
 > trong `~/.mcp/agent-console` KHÔNG thấy memory lưu từ phiên home-root. Bàn giao phải đi cùng repo.
 
-Trạng thái khi bàn giao: HEAD `3a820c0`, 79/79 pytest, master clean, local-only (không remote).
+Trạng thái: nhánh mặc định `main` (remote `origin` trên GitHub); bộ test pytest nằm ở `tests/`.
 
 ---
 
@@ -34,9 +34,9 @@ hardcode `--dangerously-skip-permissions` cho engine `agy` (bắt buộc, không
    test chỉ kiểm hàm thuần, không kiểm đường thực thi. Đó chính là lý do bug sống sót.
 
 ### Bối cảnh luật (đọc trước khi thiết kế)
-- `~/.opcos/plugins/kpim-skills/instructions/core.md` — mục *Ba mức tự trị* (`suggest`/`auto-safe`/`full`)
+- `~/OpcOS/system/plugins/kpim-skills/instructions/core.md` — mục *Ba mức tự trị* (`suggest`/`auto-safe`/`full`)
   và *Multi-agent orchestration* (chuẩn gọi agent chéo).
-- `~/.opcos/state/ENVELOPES.md` — mô hình "duyệt phạm vi một lần, không duyệt từng bước";
+- `~/OpcOS/system/state/ENVELOPES.md` — mô hình "duyệt phạm vi một lần, không duyệt từng bước";
   phép thử là **THÀNH VIÊN của phạm vi, không phải độ nặng** của hành động.
 - Nguyên tắc nền: Brain `50_KNOWLEDGE/57_FRAMEWORKS/57.07_Harness_Engineering_Framework` mục *Memory & Knowledge (H7)*
   và #13/#14 (bảo mật nhiều lớp, lớp cuối ngoài tầm model).
