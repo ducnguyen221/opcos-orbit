@@ -11,3 +11,6 @@ config.json
 .pytest_cache/
 .server.pid
 *.log
+
+# Giong mau ca nhan: o lai tren dia, khong theo doi (SPR-27)
+assets/voices/my-voice.*

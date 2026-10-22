@@ -49,7 +49,7 @@ Write-Host "Claude va Codex CLI cung can dang nhap rieng (claude / codex login) 
 # 5. OmniVoice (BAT BUOC - dependency cho Voice Studio / TTS)
 Write-Host ""
 Write-Host "== OmniVoice (bat buoc cho Voice Studio / TTS) ==" -ForegroundColor Cyan
-$omniDir = Join-Path $env:USERPROFILE ".tts\omnivoice"
+$omniDir = if ($env:OMNIVOICE_DIR) { $env:OMNIVOICE_DIR } else { Join-Path $env:USERPROFILE ".tts\omnivoice" }
 $omniVenvPy = Join-Path $omniDir ".venv\Scripts\python.exe"
 
 if (-not (Test-Path $omniVenvPy)) {
@@ -77,7 +77,7 @@ if (-not (Test-Path $omniVenvPy)) {
 }
 
 # 6. Restore bundle giong my-voice (assets/voices -> ~/.tts/omnivoice/voices)
-if (Test-Path $omniVenvPy) {
+if ((Test-Path $omniVenvPy) -and (Test-Path (Join-Path $root "assets\voices\my-voice.wav"))) {
     Write-Host ""
     Write-Host "== Restore bundle giong my-voice ==" -ForegroundColor Cyan
     try {
@@ -88,7 +88,7 @@ if (Test-Path $omniVenvPy) {
         Write-Host "  Ban co the restore thu cong sau: python -m server.voice_setup --set-default" -ForegroundColor Yellow
     }
 } else {
-    Write-Host "  Bo qua restore bundle giong (OmniVoice chua san sang)." -ForegroundColor DarkGray
+    Write-Host "  Bo qua restore bundle giong (OmniVoice chua san sang hoac thieu assets\voices\my-voice.wav)." -ForegroundColor DarkGray
 }
 
 Write-Host ""
