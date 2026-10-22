@@ -10,8 +10,7 @@ import os
 import re
 
 HOME = os.path.expanduser("~")
-REGISTRY = os.path.join(HOME, ".opcos", "registry.json")
-REGISTRY_HTML = os.path.join(HOME, ".opcos", "docs", "registry.html")
+from server.paths import REGISTRY, REGISTRY_HTML
 CLAUDE_JSON = os.path.join(HOME, ".claude.json")
 CODEX_TOML = os.path.join(HOME, ".codex", "config.toml")
 GEMINI_SETTINGS = os.path.join(HOME, ".gemini", "settings.json")

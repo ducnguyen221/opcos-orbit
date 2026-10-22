@@ -7,7 +7,7 @@ không cần clone lại thủ công.
 import os
 import shutil
 
-OV_DIR = os.path.expanduser(r"~\.tts\omnivoice")
+from server.paths import OMNIVOICE_DIR as OV_DIR
 OV_VOICES_DIR = os.path.join(OV_DIR, "voices")
 ASSETS_VOICES_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets", "voices"

@@ -1,5 +1,5 @@
 import os, subprocess, json
-OV_DIR = os.path.expanduser(r"~\.tts\omnivoice")
+from server.paths import OMNIVOICE_DIR as OV_DIR
 OV_PY = os.path.join(OV_DIR, ".venv", "Scripts", "python.exe")
 
 def _ov_call(snippet: str, *args) -> str:

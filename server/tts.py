@@ -8,7 +8,7 @@ import subprocess, os, tempfile
 # import an toàn) — ta tái dùng đúng pattern đó, spawn venv riêng của OmniVoice
 # (torch/model không có trong venv của agent-console) và gọi synthesize_speech qua
 # một snippet -c ngắn, cwd = thư mục omnivoice để `import mcp_server` chạy được.
-OV_DIR = os.path.expanduser(r"~\.tts\omnivoice")
+from server.paths import OMNIVOICE_DIR as OV_DIR
 OV_PY = os.path.join(OV_DIR, ".venv", "Scripts", "python.exe")
 
 _SYNTH_SNIPPET = (
