@@ -1,6 +1,8 @@
 import logging
 import os
 import subprocess
+import threading
+import time
 from server.config import Instance
 
 log = logging.getLogger(__name__)
@@ -13,8 +15,46 @@ def _wants_dangerous(inst: Instance) -> bool:
             and _level(inst) == "full")
 
 
-def build_command(inst: Instance, prompt: str) -> list[str]:
+# Chế độ CHỈ-ĐỌC dưới mức full (P9, SPR-60 ma trận security mục 2). Cờ đứng TRƯỚC mọi nội dung
+# lấy từ prompt; prompt đi qua stdin (không nằm trong argv — RF2/RF7). Engine không có tên ở đây
+# (gemini, agy) không có chế độ chỉ-đọc kiểm được => bị TỪ CHỐI dưới full.
+_READONLY = {
+    "claude": ["-p", "--restricted", "--permission-mode", "plan", "--permission-prompts", "none",
+               "--tools", "Read,Grep,Glob", "--strict-mcp-config", "--disable-slash-commands"],
+    # `approval_policy=never` KHÔNG ngoặc kép: shim PowerShell 5.1 làm hỏng dấu `"`.
+    "codex": ["exec", "--ignore-user-config", "--ignore-rules", "--sandbox", "read-only",
+              "-c", "approval_policy=never", "--skip-git-repo-check"],
+}
+
+
+def _norm_level(level, inst) -> str:
+    return level if isinstance(level, str) and level in _LEVELS else _level(inst)
+
+
+def _uses_stdin(inst: Instance, level: str) -> bool:
+    return level != "full" and inst.engine in _READONLY
+
+
+def readonly_refusal(inst: Instance, level: str) -> str | None:
+    """FR2/FR10: dưới full mà engine không có chế độ chỉ-đọc kiểm được => lý do từ chối (trước Popen)."""
+    if level == "full" or inst.engine not in ("gemini", "agy"):
+        return None
+    return (f"instance {inst.name} đang ở mức {level}; engine {inst.engine} không có chế độ chỉ-đọc "
+            f"kiểm được nên không chạy ở mức này. Muốn chạy: nâng `autonomy` của instance này lên "
+            f'"full" trong config.json cục bộ.')
+
+
+def build_command(inst: Instance, prompt: str, level: str | None = None) -> list[str]:
+    level = _norm_level(level, inst)
     role_sys = f"Bạn đóng vai {inst.role} trong một nhóm agent do Lead điều phối. Trả lời ngắn gọn, đúng vai."
+    if _uses_stdin(inst, level):
+        if inst.engine == "claude":
+            cmd = ["claude"] + _READONLY["claude"] + ["--append-system-prompt", role_sys]
+            session_id = getattr(inst, "session_id", "")
+            if session_id:
+                cmd += ["--resume", session_id]
+            return cmd
+        return ["codex"] + _READONLY["codex"] + ["-"]     # prompt qua stdin (xem run_agent)
     if inst.engine == "claude":
         cmd = ["claude", "-p", prompt, "--append-system-prompt", role_sys]
         session_id = getattr(inst, "session_id", "")
@@ -86,6 +126,20 @@ def stop_all_jobs() -> int:
         RUNNING.pop(pid, None)
     return n
 
+def _feed_stdin(p, text: str) -> None:
+    """Ghi prompt vào stdin rồi đóng. Engine thoát sớm/đóng pipe => bỏ qua lỗi, không treo."""
+    try:
+        p.stdin.write(text)
+        p.stdin.flush()
+    except (BrokenPipeError, OSError, ValueError):
+        pass
+    finally:
+        try:
+            p.stdin.close()
+        except (BrokenPipeError, OSError, ValueError):
+            pass
+
+
 def _run_ollama(inst: Instance, prompt: str, timeout: int, job) -> str:
     """Engine `ollama`: gọi HTTP server local (đang chạy sẵn cổng 11434) — agent phụ
     0 đồng/offline cho vai draft/tóm tắt/dịch. Model đặt ở inst.model, mặc định qwen2.5:7b.
@@ -128,13 +182,18 @@ def run_agent(inst: Instance, prompt: str, timeout: int = 120) -> str:
     except Exception:
         allowed = False
     if not allowed:
-        msg = f"autonomy '{_level(inst)}' không cho phép action '{action}'"
+        msg = (f"instance {inst.name}: autonomy '{_level(inst)}' không cho phép action '{action}'. "
+               f"Nâng `autonomy` lên \"full\" trong config.json cục bộ nếu thật sự cần.")
         job.finish(1, msg)
         return f"[ERROR] {inst.name}: {msg}"
     if inst.engine == "ollama":
         return _run_ollama(inst, prompt, timeout, job)
     try:
-        cmd = build_command(inst, prompt)
+        level = _level(inst)
+        refusal = readonly_refusal(inst, level)
+        if refusal:
+            raise PermissionError(refusal)
+        cmd = build_command(inst, prompt, level)
     except Exception as e:
         job.finish(1, str(e))
         return f"[ERROR] {inst.name}: {e}"
@@ -143,16 +202,24 @@ def run_agent(inst: Instance, prompt: str, timeout: int = 120) -> str:
         msg = "prompt chứa ký tự đặc biệt của cmd.exe (& | < > ^ % \" !) — từ chối chạy qua shim .cmd"
         job.finish(1, msg)
         return f"[ERROR] {inst.name}: {msg}"
+    via_stdin = _uses_stdin(inst, level)
+    stdin_text = (f"[{inst.role}] {prompt}" if inst.engine == "codex" else prompt) if via_stdin else None
     p = None
     try:
         # stderr GỘP vào stdout để reader thread thấy cả permission-prompt in ra stderr
         # (máy trạng thái blocked của jobs.py soi đuôi output sống — kiểu herdr).
+        extra = {"stdin": subprocess.PIPE} if via_stdin else {}
         p = subprocess.Popen(real, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                             text=True, encoding="utf-8", errors="replace")
+                             text=True, encoding="utf-8", errors="replace", **extra)
         RUNNING[p.pid] = p
-        jobs.attach_process(job, p)
+        jobs.attach_process(job, p)           # reader chạy trước khi ghi stdin (tránh bí pipe)
+        deadline = time.monotonic() + timeout
+        if via_stdin:
+            feeder = threading.Thread(target=_feed_stdin, args=(p, stdin_text), daemon=True)
+            feeder.start()
+            feeder.join(timeout)
         try:
-            p.wait(timeout=timeout)
+            p.wait(timeout=max(0.1, deadline - time.monotonic()))
         except subprocess.TimeoutExpired:
             _kill_tree(p.pid)
             job.finish(None, f"timeout {timeout}s")

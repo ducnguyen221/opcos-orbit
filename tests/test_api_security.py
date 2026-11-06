@@ -154,8 +154,8 @@ def test_cmd_shim_rejects_metacharacters_without_spawn(monkeypatch):
     from server.config import Instance
     monkeypatch.setattr(adapters, "_resolve", lambda n: ["cmd", "/c", r"C:\x\claude.cmd"])
     with patch("server.adapters.subprocess.Popen") as popen:
-        out = adapters.run_agent(Instance(name="c", engine="claude", role="Lead"),
-                                 'x" & calc & "', timeout=5)
+        out = adapters.run_agent(Instance(name="c", engine="claude", role="Lead", autonomy="full"),
+                                 'x" & calc & "', timeout=5)   # P9: dưới full prompt đi stdin, không còn trong argv
     assert out.startswith("[ERROR]")
     popen.assert_not_called()
 
