@@ -366,3 +366,16 @@ def test_unknown_engine_below_full_refused_before_popen(spawn):  # allowlist
     inst = Instance(name="n-1", engine="newbot", role="X", autonomy="suggest")
     out = adapters.run_agent(inst, "hi", timeout=5)
     assert out.startswith("[ERROR]") and "config.json" in out and spawn.calls == []
+
+
+EVIL_ROLE = 'X" --dangerously-skip-permissions "\r\nY'
+
+
+@pytest.mark.parametrize("engine,lvl", [("claude", "suggest"), ("claude", "full"),
+                                        ("codex", "full"), ("gemini", "full"), ("agy", "full")])
+def test_role_sanitized_no_quote_or_control_in_argv(spawn, engine, lvl):  # A-RF2
+    inst = Instance(name="x", engine=engine, role=EVIL_ROLE, autonomy=lvl)
+    adapters.run_agent(inst, "hi", timeout=5)
+    for a in spawn.calls[0]:
+        assert '"' not in a and "\r" not in a and "\n" not in a
+        assert not a.startswith("--dangerously-skip-permissions")
