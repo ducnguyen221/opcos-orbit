@@ -305,3 +305,17 @@ def test_gate_refusal_message_tells_how_to_raise(spawn, monkeypatch):  # T10 (FR
     out = adapters.run_agent(Instance(name="c-9", engine="claude", autonomy="suggest"), "x", timeout=5)
     for needle in ("c-9", "suggest", "config.json", "full"):
         assert needle in out
+
+
+@pytest.mark.parametrize("engine", ["claude", "codex"])
+def test_suggest_via_cmd_shim_prompt_in_stdin_not_argv(monkeypatch, spawn, engine):  # vòng 2
+    """Dưới full qua shim cmd /c: prompt đầy ký tự đặc biệt cmd không nằm trong argv, đi stdin."""
+    monkeypatch.setattr(adapters, "_resolve", lambda n: ["cmd", "/c", r"C:\x\shim.cmd"])
+    nasty = 'x" & calc & "%PATH%^!'
+    inst = Instance(name="c", engine=engine, role="Coder", autonomy="suggest")
+    out = adapters.run_agent(inst, nasty, timeout=5)
+    assert out == "ok" and len(spawn.calls) == 1
+    argv = spawn.calls[0]
+    assert argv[:3] == ["cmd", "/c", r"C:\x\shim.cmd"]
+    assert not any(adapters._CMD_META.search(a) for a in argv[3:])
+    assert nasty in spawn.procs[0].stdin.data
