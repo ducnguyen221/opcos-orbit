@@ -7,16 +7,15 @@ description: "Introduce, install, start and stop OpcOS Orbit - the optional loca
 
 > Quy ước: `<opcos>` = gốc OpcOS = biến `OPCOS_ROOT`, mặc định `~/OpcOS` (biến trống thì dùng `$HOME\OpcOS`). `<orbit>` = `<opcos>\orbit`.
 
-Orbit (trước gọi Agent Console) là repo git riêng, **tuỳ chọn**, nằm ở `<opcos>\orbit`. Nghe keyword là **giới thiệu** / **cài** / **bật** / **tắt**, báo trạng thái gọn.
-"orbit / agent console / console / giao diện tương tác / giao diện quản lý agent / UI agent" = CÙNG 1 thứ.
+Orbit (trước gọi Agent Console) là repo git riêng, **tuỳ chọn**, ở `<opcos>\orbit`. "orbit / agent console / console / giao diện quản lý agent / UI agent" = CÙNG 1 thứ.
 
 ## Orbit là gì
-Web local (chỉ nghe localhost, cổng 7788) để điều phối và đàm thoại với nhiều agent (Claude, Codex, Gemini/agy, Ollama): Mission Control theo dõi job working/blocked/done, voice STT/TTS (tuỳ chọn), System pane đọc registry của OpcOS. Nặng vài GB (venv + model), cần Python 3.10–3.13. Không bắt buộc — OpcOS chạy đủ không cần nó.
+Web local (chỉ nghe localhost, cổng 7788) để điều phối và đàm thoại với nhiều agent (Claude, Codex, Gemini/agy, Ollama): Mission Control theo dõi job working/blocked/done, voice STT/TTS (tuỳ chọn), System pane đọc registry của OpcOS. Nặng vài GB, cần Python 3.10–3.13. Không bắt buộc.
 
-Mức tự trị: instance chạy dưới `full` thì claude/codex chỉ đọc, gemini/agy bị từ chối; nâng `autonomy` trong `config.json` cục bộ. Chi tiết ở `README.md` của Orbit — không lặp ở đây.
+Dưới `full`: claude/codex chỉ đọc, gemini/agy bị từ chối; nâng `autonomy` trong `config.json` cục bộ (chi tiết: `README.md` Orbit).
 
 ## Cổng chặn (làm trước mọi việc)
-Mỗi lần gọi PowerShell là tiến trình mới: **mỗi khối dưới đây tự suy lại `$opcos`/`$root`**, đừng dựa biến của khối trước.
+Mỗi khối dưới đây tự suy lại `$opcos`/`$root` (mỗi lần gọi PowerShell là tiến trình mới).
 ```powershell
 if ($env:OS -ne 'Windows_NT') { 'khong-ho-tro-os' } else {
   $opcos = if ($env:OPCOS_ROOT) { $env:OPCOS_ROOT } else { Join-Path $HOME 'OpcOS' }
@@ -33,10 +32,9 @@ if ($env:OS -ne 'Windows_NT') { 'khong-ho-tro-os' } else {
 
 ## Chưa cài (`chua-clone`)
 Giải thích Orbit ngắn, **hỏi Đức có muốn cài không**; gật mới làm, không tự cài. Lệnh (chỉ nêu, chạy sau khi được gật):
-1. Lệnh chính: `powershell -NoProfile -File <opcos>\system\operations\install.ps1 -Siblings opcos-orbit` (install.ps1 của OpcOS: clone Orbit vào `<opcos>\orbit` và cài plugin).
+1. Lệnh chính: `powershell -NoProfile -File <opcos>\system\operations\install.ps1 -Siblings opcos-orbit` (clone Orbit vào `<opcos>\orbit`, cài plugin).
 2. Phương án tay: `powershell -NoProfile -File <opcos>\system\operations\tasks\clone-sibling.ps1 -Id opcos-orbit`.
-3. Rồi `<orbit>\install.ps1` (dựng venv + deps, tạo `config.json`; lần đầu lâu, báo «đang cài lần đầu»), sau đó bật.
-`<opcos>\orbit` bị `.gitignore` của OpcOS bỏ qua (repo riêng).
+3. Rồi `<orbit>\install.ps1` (dựng venv + deps, tạo `config.json`; lần đầu lâu), sau đó bật.
 
 ## Thiếu venv (`chua-install`)
 Đừng clone lại. Nêu `<orbit>\install.ps1`, hỏi Đức, gật mới chạy; xong thì bật.
@@ -52,7 +50,7 @@ Báo: «Orbit đang chạy tại http://localhost:7788». Trạng thái khác `s
 
 ## Tắt
 Trigger: tắt / dừng / đóng / stop / turn off / kill + (orbit | console | giao diện agent | UI…).
-**Chỉ dừng tiến trình đã xác minh là Orbit.** Không `Stop-Process -Force` mù theo cổng. Chạy MỘT khối (thu ứng viên, xác minh, dừng, xoá pid, in mã):
+**Chỉ dừng tiến trình đã xác minh là Orbit**, không kill mù theo cổng. Chạy MỘT khối:
 ```powershell
 $port = 7788
 $opcos = if ($env:OPCOS_ROOT) { $env:OPCOS_ROOT } else { Join-Path $HOME 'OpcOS' }
@@ -87,23 +85,15 @@ foreach ($id in $cands) {
 if ((Test-Path $pf) -and $failed -eq 0) { Remove-Item $pf -Force -ErrorAction SilentlyContinue; if (-not $any) { 'STALE-PIDFILE' } }
 if ($cands.Count -eq 0) { 'NOT-RUNNING' }
 ```
-Khối in mã ASCII (tránh lỗi font); báo lại Đức bằng câu tiếng Việt:
+Khối in mã ASCII; báo Đức bằng tiếng Việt:
+- `STOPPED pid=N` đã tắt Orbit (cả cây). `STOP-FAILED pid=N` không tắt được, giữ `.server.pid`, nói Đức.
+- `NOT-ORBIT pid=N name=X` PID N (X) giữ cổng/có trong `.server.pid` nhưng KHÔNG phải Orbit — không tắt, nhờ Đức xem.
+- `GONE pid=N` `.server.pid` cũ, PID không còn. `STALE-PIDFILE` đã xoá `.server.pid` cũ/trỏ tiến trình lạ (không đụng tiến trình đó), Orbit không chạy. `NOT-RUNNING` Orbit không chạy.
 
-| Mã | Báo |
-|---|---|
-| `STOPPED pid=N` | Đã tắt Orbit (PID N, cả cây tiến trình). |
-| `STOP-FAILED pid=N` | Không tắt được PID N; giữ `.server.pid`, nói Đức, đừng thử cách mù. |
-| `NOT-ORBIT pid=N name=X` | PID N (X) giữ cổng 7788 hoặc có trong `.server.pid` nhưng KHÔNG phải Orbit của máy này — không tắt, nhờ Đức xem. |
-| `GONE pid=N` | `.server.pid` trỏ PID N đã không còn chạy (tệp cũ, đã xoá). |
-| `STALE-PIDFILE` | `.server.pid` cũ/trỏ tiến trình lạ nên đã xoá (không đụng tiến trình đó); Orbit không chạy. |
-| `NOT-RUNNING` | Orbit không chạy. |
-
-- «Là Orbit» = chính tiến trình hoặc tổ tiên (tối đa 5 cấp) có `uvicorn` + `server.app` trong dòng lệnh, và có tiến trình trong chuỗi có tệp chạy dưới thư mục Orbit hoặc dòng lệnh chứa đường Orbit (không phân biệt hoa thường; cả tên dài lẫn 8.3). Trên Windows venv chạy `uvicorn.exe` → `python.exe` của venv → python gốc ngoài thư mục; python gốc nghe cổng vẫn được nhận nhờ tổ tiên. Khi tắt, khối dừng tổ tiên Orbit cao nhất rồi `/T` dọn cả cây.
-- Orbit chạy từ một worktree con **bên trong** thư mục Orbit cũng được coi là Orbit; từ nơi khác thì coi là lạ.
-- `stop.ps1` của Orbit chỉ kiểm PID trong `.server.pid` còn sống chứ không xác minh đó là Orbit, nên skill dùng khối trên thay vì gọi nó mù.
+- «Là Orbit» = chính nó hoặc tổ tiên (≤ 5 cấp) có `uvicorn` + `server.app` trong dòng lệnh, và có tiến trình trong chuỗi chạy từ dưới thư mục Orbit hoặc dòng lệnh chứa đường Orbit (dài hoặc 8.3, không phân biệt hoa thường). Venv Windows: `uvicorn.exe` → `python.exe` venv → python gốc ngoài thư mục (python gốc mới nghe cổng) — vẫn nhận nhờ tổ tiên; tắt tổ tiên Orbit cao nhất với `/T`.
+- Orbit chạy từ worktree con **bên trong** thư mục Orbit cũng được coi là Orbit; nơi khác là lạ.
+- Không gọi `stop.ps1` của Orbit: nó không xác minh PID là Orbit.
 
 ## Nguyên tắc
 - Chỉ giới thiệu / cài (khi được gật) / bật / tắt + mở URL — không tự làm gì thêm trong Orbit.
-- Liệt kê lệnh trước khi chạy nếu ở chế độ cần duyệt.
-- Cổng mặc định 7788 (khớp `run.ps1`); đổi cổng thì sửa cả đây.
-- Orbit cần OmniVoice (voice, tuỳ chọn) + Claude/Codex/Gemini CLI — chi tiết ở `README.md` Orbit và registry OpcOS (`opcos-orbit`).
+- Cổng mặc định 7788 (khớp `run.ps1`); đổi cổng thì sửa cả đây. Chi tiết khác: `README.md` Orbit.
