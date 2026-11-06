@@ -10,7 +10,7 @@ description: "Introduce, install, start and stop OpcOS Orbit - the optional loca
 Orbit (trước gọi Agent Console) là repo git riêng, **tuỳ chọn**, ở `<opcos>\orbit`. "orbit / agent console / console / giao diện quản lý agent / UI agent" = CÙNG 1 thứ.
 
 ## Orbit là gì
-Web local (chỉ nghe localhost, cổng 7788) để điều phối và đàm thoại với nhiều agent (Claude, Codex, Gemini/agy, Ollama): Mission Control theo dõi job working/blocked/done, voice STT/TTS (tuỳ chọn), System pane đọc registry của OpcOS. Nặng vài GB, cần Python 3.11+. Không bắt buộc.
+Web local (chỉ nghe localhost, cổng 7788) để điều phối và đàm thoại với nhiều agent (Claude, Codex, Gemini/agy, Ollama): Mission Control theo dõi job working/blocked/done, voice STT/TTS (tuỳ chọn), System pane đọc registry của OpcOS. Nặng vài trăm MB (venv đo 322 MB), cần Python 3.11+. Không bắt buộc.
 
 Dưới `full`: claude/codex chỉ đọc, gemini/agy bị từ chối; nâng `autonomy` trong `config.json` cục bộ (chi tiết: `README.md` Orbit).
 
@@ -31,13 +31,13 @@ if ($env:OS -ne 'Windows_NT') { 'khong-ho-tro-os' } else {
 - `chua-clone` → mục **Chưa cài**. `chua-install` (thiếu `.venv` hoặc `config.json`) → mục **Thiếu venv**. `san-sang` → bật/tắt.
 
 ## Chưa cài (`chua-clone`)
-Giải thích Orbit ngắn, **hỏi Đức có muốn cài không**; gật mới làm, không tự cài. Lệnh (chỉ nêu, chạy sau khi được gật):
+Nêu Orbit, **hỏi người dùng có muốn cài không**; gật mới làm, không tự cài. Lệnh (chỉ nêu, chạy sau khi được gật):
 1. Lệnh chính: `powershell -NoProfile -File <opcos>\system\operations\install.ps1 -Siblings opcos-orbit` (clone + cài plugin).
 2. Phương án tay: `powershell -NoProfile -File <opcos>\system\operations\tasks\clone-sibling.ps1 -Id opcos-orbit`.
 3. Rồi `<orbit>\install.ps1` (dựng venv + deps, tạo `config.json`; lần đầu lâu), rồi bật.
 
 ## Thiếu venv (`chua-install`)
-Không clone lại. Nêu `<orbit>\install.ps1`, hỏi Đức, gật mới chạy; xong thì bật.
+Không clone lại. Nêu `<orbit>\install.ps1`, hỏi người dùng, gật mới chạy; xong thì bật.
 
 ## Bật
 Trigger: khởi động / mở / bật / chạy / launch / start / open + (orbit | agent console | console | giao diện agent | UI agent…). Chỉ khi cổng chặn ra `san-sang`:
@@ -85,9 +85,9 @@ foreach ($id in $cands) {
 if ((Test-Path $pf) -and $failed -eq 0) { Remove-Item $pf -Force -ErrorAction SilentlyContinue; if (-not $any) { 'STALE-PIDFILE' } }
 if ($cands.Count -eq 0) { 'NOT-RUNNING' }
 ```
-Khối in mã ASCII; báo Đức bằng tiếng Việt:
-- `STOPPED pid=N` đã tắt Orbit (cả cây). `STOP-FAILED pid=N` không tắt được, giữ `.server.pid`, nói Đức.
-- `NOT-ORBIT pid=N name=X` PID N (X) giữ cổng/có trong `.server.pid` nhưng KHÔNG phải Orbit — không tắt, báo Đức.
+Khối in mã ASCII; báo người dùng tiếng Việt:
+- `STOPPED pid=N` đã tắt Orbit (cả cây). `STOP-FAILED pid=N` không tắt được, giữ `.server.pid`, báo lại.
+- `NOT-ORBIT pid=N name=X` PID N (X) giữ cổng/có trong `.server.pid` nhưng KHÔNG phải Orbit — không tắt, báo lại.
 - `GONE pid=N` `.server.pid` cũ, PID không còn. `STALE-PIDFILE` đã xoá `.server.pid` cũ/trỏ tiến trình lạ (không đụng tiến trình đó), Orbit không chạy. `NOT-RUNNING` Orbit không chạy.
 
 - «Là Orbit» = chính nó hoặc tổ tiên (≤ 5 cấp) có `uvicorn` + `server.app` trong dòng lệnh, và có tiến trình trong chuỗi chạy từ dưới thư mục Orbit hoặc dòng lệnh chứa đúng đường Orbit (dài hoặc 8.3, có ranh giới: `orbit-old` không khớp). Venv Windows: `uvicorn.exe` → `python.exe` venv → python gốc ngoài thư mục (python gốc mới nghe cổng) — vẫn nhận nhờ tổ tiên. Chỉ tắt (`/T`) tổ tiên cao nhất **mang dấu `uvicorn`+`server.app`**; shell/editor cha không mang dấu thì sống.

@@ -104,6 +104,8 @@ Chỉnh sửa `config.json` (copy từ `config.example.json`):
   `"autonomy": "full"` trong `config.json` cục bộ (không commit); API chỉ cho hạ mức, không
   cho nâng. Việc Lead giao chạy ở mức thấp hơn của (Lead, instance đích). Cấu hình được đọc
   lại mỗi lượt hội thoại.
+  **Lưu ý:** mức dưới `full` không ghi được nhưng vẫn ĐỌC được tệp (codex chỉ-đọc đọc được toàn đĩa và
+  có công cụ web) — đừng giao instance mức thấp nội dung không tin cậy cạnh dữ liệu nhạy cảm.
 - `instances[].skip_permissions` — chỉ `agy`: thêm cờ bỏ-qua-quyền khi và chỉ khi `autonomy` là `full`.
 
 ## Marker cố định
