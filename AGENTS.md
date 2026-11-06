@@ -8,34 +8,25 @@ Trạng thái: nhánh mặc định `main` (remote `origin` trên GitHub); bộ 
 
 ---
 
-## 🐞 VIỆC ĐẦU TIÊN — lỗi bảo mật: 3 mức tự trị đang là TRANG TRÍ
+## Trạng thái cổng tự trị (P9, 06/11/2026)
 
-**Phát hiện + kiểm chứng 2026-08-09** (Codex nêu, đã tự verify bằng grep).
+Lỗi cũ "3 mức tự trị chỉ là trang trí" **đã sửa** — đừng sửa lại cổng.
 
-`check_autonomy(inst, action)` **có thật** ở `server/adapters.py:132` và **logic đúng**:
+- `run_agent` (`server/adapters.py`) gọi `check_autonomy` ở biên side-effect, TRƯỚC khi spawn/gọi
+  engine; lỗi hay thiếu/giá trị lạ của `autonomy` → coi như `suggest` (fail-closed).
+- Dưới `full`: `claude`/`codex` chạy **chỉ-đọc** (cờ chỉ-đọc + prompt đi qua stdin, output có dòng
+  `[chỉ-đọc]`); engine không có chế độ chỉ-đọc kiểm được (`gemini`, `agy`) bị **từ chối** trước khi
+  chạy (`readonly_refusal`). `ollama` không có công cụ nên được chạy.
+- Mức hiệu lực đi theo nguồn tin trên bus: tin từ nguồn không xác thực bị hạ mức.
+- Test đường thực thi: `tests/test_autonomy_gate.py`.
 
-```
-full       -> True
-auto-safe  -> action in ("read", "draft", "query")
-còn lại    -> action in ("read", "query")
-```
+**Việc còn mở** (chi tiết ở hồ sơ sprint SPR-60 bên OpcOS): cwd cách ly theo instance (RF8);
+`stop.ps1` không xác minh pid là Orbit; prompt còn nằm trong argv ở mức `full` (RF7); RF6, RF11, RF12;
+khung `[ATTACH …]` thiếu dấu đóng.
 
-Nhưng `grep -rn check_autonomy` cho thấy **chỉ `tests/test_adapters.py:24-25` gọi nó** — **không một đường thực thi production nào gọi**.
-
-⇒ Instance khai `suggest` vẫn làm được mọi thứ engine cho phép. Cộng thêm `adapters.py:19`
-hardcode `--dangerously-skip-permissions` cho engine `agy` (bắt buộc, không có thì agy treo)
-⇒ **agy instance = toàn quyền máy bất kể tier khai báo**.
-
-### Cần làm
-1. Gọi `check_autonomy` ở **đúng biên side-effect** trong `orchestrator`/`adapters`, TRƯỚC khi chạy action.
-2. **Fail-closed**: thiếu field `autonomy` → coi như `suggest`, không phải `full`.
-3. Cách ly `agy`: chỉ giao việc chỉ-đọc, hoặc chạy trong sandbox riêng.
-4. Thêm test chứng minh một instance `suggest` **không** thực hiện được action ghi — hiện tại
-   test chỉ kiểm hàm thuần, không kiểm đường thực thi. Đó chính là lý do bug sống sót.
-
-### Bối cảnh luật (đọc trước khi thiết kế)
-- `~/OpcOS/system/plugins/kpim-skills/instructions/core.md` — mục *Ba mức tự trị* (`suggest`/`auto-safe`/`full`)
-  và *Multi-agent orchestration* (chuẩn gọi agent chéo).
+### Bối cảnh luật (đọc trước khi đổi cổng)
+- `~/OpcOS/system/governance/core.md` — mục *Safety & boundaries* (ba mức tự trị `suggest`/`auto-safe`/`full`
+  ở `references/workflow-chi-tiet.md`) và *Multi-agent orchestration* (chuẩn gọi agent chéo).
 - `~/OpcOS/system/state/ENVELOPES.md` — mô hình "duyệt phạm vi một lần, không duyệt từng bước";
   phép thử là **THÀNH VIÊN của phạm vi, không phải độ nặng** của hành động.
 - Nguyên tắc nền: Brain `50_KNOWLEDGE/57_FRAMEWORKS/57.07_Harness_Engineering_Framework` mục *Memory & Knowledge (H7)*
