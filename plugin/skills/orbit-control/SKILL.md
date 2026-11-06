@@ -16,20 +16,20 @@ Web local (chỉ nghe localhost, cổng 7788) để điều phối và đàm tho
 Mức tự trị: instance chạy dưới `full` thì claude/codex chỉ đọc, gemini/agy bị từ chối; nâng `autonomy` trong `config.json` cục bộ. Chi tiết ở `README.md` của Orbit — không lặp ở đây.
 
 ## Cổng chặn (làm trước mọi việc)
+Mỗi lần gọi PowerShell là tiến trình mới: **mỗi khối dưới đây tự suy lại `$opcos`/`$root`**, đừng dựa biến của khối trước.
 ```powershell
-$isWin = ($env:OS -eq 'Windows_NT')
-if (-not $isWin) { 'khong-ho-tro-os' } else {
+if ($env:OS -ne 'Windows_NT') { 'khong-ho-tro-os' } else {
   $opcos = if ($env:OPCOS_ROOT) { $env:OPCOS_ROOT } else { Join-Path $HOME 'OpcOS' }
-  $root  = Join-Path $opcos 'orbit'
+  $root  = [IO.Path]::GetFullPath((Join-Path $opcos 'orbit')).TrimEnd('\')
   if (-not (Test-Path (Join-Path $opcos 'system'))) { 'thieu-opcos' }
   elseif (-not (Test-Path (Join-Path $root '.git'))) { 'chua-clone' }
-  elseif (-not (Test-Path (Join-Path $root '.venv\Scripts\uvicorn.exe'))) { 'chua-install' }
+  elseif (-not ((Test-Path (Join-Path $root '.venv\Scripts\uvicorn.exe')) -and (Test-Path (Join-Path $root 'config.json')))) { 'chua-install' }
   else { 'san-sang' }
 }
 ```
 - `khong-ho-tro-os` → báo «chưa hỗ trợ hệ điều hành này (Orbit chỉ chạy Windows)», **không chạy lệnh nào**, dừng.
 - `thieu-opcos` → báo «thiếu OpcOS» (không thấy `<opcos>\system`; kiểm `OPCOS_ROOT`), dừng. Không tự cài OpcOS.
-- `chua-clone` → mục **Chưa cài**. `chua-install` → mục **Thiếu venv**. `san-sang` → bật/tắt.
+- `chua-clone` → mục **Chưa cài**. `chua-install` (thiếu `.venv` hoặc `config.json`) → mục **Thiếu venv**. `san-sang` → bật/tắt.
 
 ## Chưa cài (`chua-clone`)
 Giải thích Orbit ngắn, **hỏi Đức có muốn cài không**; gật mới làm, không tự cài. Lệnh (chỉ nêu, chạy sau khi được gật):
@@ -42,39 +42,41 @@ Giải thích Orbit ngắn, **hỏi Đức có muốn cài không**; gật mới
 Đừng clone lại. Nêu `<orbit>\install.ps1`, hỏi Đức, gật mới chạy; xong thì bật.
 
 ## Bật
-Trigger: khởi động / mở / bật / chạy / start / open + (orbit | agent console | giao diện agent | UI agent…). Chỉ khi `san-sang`:
+Trigger: khởi động / mở / bật / chạy / launch / start / open + (orbit | agent console | console | giao diện agent | UI agent…). Chỉ khi cổng chặn ra `san-sang`:
 ```powershell
+$opcos = if ($env:OPCOS_ROOT) { $env:OPCOS_ROOT } else { Join-Path $HOME 'OpcOS' }
+$root  = [IO.Path]::GetFullPath((Join-Path $opcos 'orbit')).TrimEnd('\')
 & (Join-Path $root 'run.ps1') -Detached   # chạy nền, PID ở .server.pid; run.ps1 mở trình duyệt
 ```
 Báo: «Orbit đang chạy tại http://localhost:7788». Trạng thái khác `san-sang` → làm theo mục tương ứng, đừng bịa đường khác.
 
 ## Tắt
 Trigger: tắt / dừng / đóng / stop / turn off / kill + (orbit | console | giao diện agent | UI…).
-**Chỉ dừng tiến trình đã xác minh là Orbit.** Không `Stop-Process -Force` mù theo cổng.
-
-Bước 1 — tìm ứng viên (xong chưa kill gì):
+**Chỉ dừng tiến trình đã xác minh là Orbit.** Không `Stop-Process -Force` mù theo cổng. Chạy MỘT khối (thu ứng viên, xác minh, dừng, xoá pid, báo):
 ```powershell
-$cands = @()
+$opcos = if ($env:OPCOS_ROOT) { $env:OPCOS_ROOT } else { Join-Path $HOME 'OpcOS' }
+$root  = [IO.Path]::GetFullPath((Join-Path $opcos 'orbit')).TrimEnd('\')
 $pf = Join-Path $root '.server.pid'
-if (Test-Path $pf) { $p = [int](Get-Content $pf -ErrorAction SilentlyContinue | Select-Object -First 1); if ($p) { $cands += $p } }
-$listen = Get-NetTCPConnection -LocalPort 7788 -State Listen -ErrorAction SilentlyContinue
-if ($listen) { $cands += ($listen.OwningProcess | Select-Object -Unique) }
-$cands = $cands | Select-Object -Unique
-```
-Bước 2 — xác minh từng ứng viên (CIM, dòng lệnh + đường tệp chạy):
-```powershell
-$isOrbit = { param($id)
+$cands = @()
+if (Test-Path $pf) { $n = 0; if ([int]::TryParse(("$(Get-Content $pf -ErrorAction SilentlyContinue | Select-Object -First 1)").Trim(), [ref]$n) -and $n -gt 0) { $cands += $n } }
+$cands += @(Get-NetTCPConnection -LocalPort 7788 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { [int]$_.OwningProcess })
+$cands = @($cands | Where-Object { $_ -gt 0 } | Select-Object -Unique)
+$stopped = 0
+foreach ($id in $cands) {
   $w = Get-CimInstance Win32_Process -Filter "ProcessId=$id" -ErrorAction SilentlyContinue
-  if (-not $w) { return $false }
+  if (-not $w) { "PID $id không còn chạy (tệp .server.pid cũ)."; continue }
   $cmd = "$($w.CommandLine)"; $exe = "$($w.ExecutablePath)"
-  ($cmd -match 'uvicorn') -and ($cmd -match 'server\.app') -and
-  ($exe.StartsWith($root, [StringComparison]::OrdinalIgnoreCase) -or $cmd.IndexOf($root, [StringComparison]::OrdinalIgnoreCase) -ge 0)
+  $ok = ($cmd -match 'uvicorn') -and ($cmd -match 'server\.app') -and
+        ($exe -and [IO.Path]::GetFullPath($exe).StartsWith($root + '\', [StringComparison]::OrdinalIgnoreCase))
+  if ($ok) { taskkill /PID $id /T /F | Out-Null; $stopped++; "Đã tắt Orbit (PID $id)." }
+  else { "PID $id ($($w.Name)) KHÔNG phải Orbit của $root - không tắt." }
 }
+if ((Test-Path $pf) -and ($stopped -gt 0 -or -not (@($cands) | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue }))) { Remove-Item $pf -Force -ErrorAction SilentlyContinue }
+if ($cands.Count -eq 0) { 'Orbit không chạy.' }
 ```
-- Ứng viên qua `$isOrbit` → dừng cây của nó: `taskkill /PID <id> /T /F` (uvicorn có thể có worker con), xoá `.server.pid`, báo «Orbit đã tắt».
-- Ứng viên **không** qua (tiến trình lạ nghe 7788, hoặc PID trong `.server.pid` đã bị tái dùng) → **báo cho Đức** (PID, tên tiến trình) và **không tắt**. `.server.pid` trỏ PID không còn/không phải Orbit thì chỉ báo là tệp cũ.
-- Không có ứng viên → «Orbit không chạy».
-`stop.ps1` của Orbit chỉ kiểm PID trong `.server.pid` còn sống chứ không xác minh đó là Orbit, nên skill dùng cách xác minh trên thay vì gọi nó mù.
+- Tiến trình lạ nghe 7788 (hoặc PID trong `.server.pid` đã bị tái dùng) → khối chỉ **báo PID + tên**, không tắt; nói lại cho Đức.
+- «Là Orbit» = dòng lệnh có `uvicorn` + `server.app` và tệp chạy nằm dưới thư mục Orbit đó (không phân biệt hoa thường, đã chuẩn hoá tên 8.3). Orbit chạy từ một worktree con **bên trong** thư mục Orbit cũng được coi là Orbit; từ nơi khác thì coi là lạ.
+- `stop.ps1` của Orbit chỉ kiểm PID trong `.server.pid` còn sống chứ không xác minh đó là Orbit, nên skill dùng khối trên thay vì gọi nó mù.
 
 ## Nguyên tắc
 - Chỉ giới thiệu / cài (khi được gật) / bật / tắt + mở URL — không tự làm gì thêm trong Orbit.
