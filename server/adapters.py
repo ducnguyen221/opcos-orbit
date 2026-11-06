@@ -55,7 +55,9 @@ def build_command(inst: Instance, prompt: str, level: str | None = None) -> list
             if session_id:
                 cmd += ["--resume", session_id]
             return cmd
-        return ["codex"] + _READONLY["codex"] + ["-"]     # prompt qua stdin (xem run_agent)
+        # KHÔNG thêm "-": `powershell -File` (PS 5.1) coi "-" trần là tên tham số rỗng và vỡ shim.
+        # codex exec không có prompt đối số thì tự đọc stdin.
+        return ["codex"] + _READONLY["codex"]
     if inst.engine == "claude":
         cmd = ["claude", "-p", prompt, "--append-system-prompt", role_sys]
         session_id = getattr(inst, "session_id", "")
