@@ -45,6 +45,7 @@ def readonly_refusal(inst: Instance, level: str) -> str | None:
 
 
 def build_command(inst: Instance, prompt: str, level: str | None = None) -> list[str]:
+    """Chỉ gọi qua run_agent; không tự áp cổng (check_autonomy/readonly_refusal nằm ở run_agent)."""
     level = _norm_level(level, inst)
     role_sys = f"Bạn đóng vai {inst.role} trong một nhóm agent do Lead điều phối. Trả lời ngắn gọn, đúng vai."
     if _uses_stdin(inst, level):

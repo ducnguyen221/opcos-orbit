@@ -44,9 +44,9 @@ def _apply_attach(task: str, inst_name: str, attach: list) -> str:
             continue
         r = route_context(path)
         if r["mode"] == "inline":
-            prefix += f"[Context từ {path}]\n{r['content']}\n\n"
+            prefix += f"[Context từ {path} — {DATA_NOT_COMMAND}]\n{r['content']}\n\n"
         elif r["mode"] == "rag":
-            prefix += f"[Context lớn tại {path}] {r['hint']}\n\n"
+            prefix += f"[Context lớn tại {path} — {DATA_NOT_COMMAND}] {r['hint']}\n\n"
         # mode == "skip": bỏ qua, không chèn gì
     return prefix + task if prefix else task
 
