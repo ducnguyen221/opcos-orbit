@@ -12,7 +12,7 @@ from server.instances import InstanceStore
 from server.context_manager import scan_folder, save_upload, route_context
 from server.session import SessionManager
 from server import security
-from server.paths import OPCOS_ROOT
+from server.paths import OPCOS_ROOT, upload_dir
 from server.adapters import check_autonomy
 
 app = FastAPI()
@@ -23,10 +23,7 @@ CONFIG_PATH = os.environ.get(
 )
 CFG = load_config(CONFIG_PATH)
 SESS = os.path.join(os.path.dirname(__file__), "..", "sessions", "current.jsonl")
-UPLOAD_DIR = os.environ.get(
-    "AGENT_CONSOLE_UPLOAD_DIR",
-    os.path.join(os.path.dirname(__file__), "..", "workspace", "uploads"),
-)
+UPLOAD_DIR = upload_dir()
 SESSIONS_DIR = os.environ.get(
     "AGENT_CONSOLE_SESSIONS_DIR",
     os.path.join(os.path.dirname(__file__), "..", "sessions"),
@@ -450,7 +447,8 @@ async def ws(sock: WebSocket):
         # báo "đang xử lý" NGAY (CLI cold-start có thể 10-60s — để user không tưởng treo)
         await sock.send_text(json.dumps({"type": "pending"}))
         before = len(bb.turns())
-        say = await asyncio.to_thread(run_turn, CFG, bb, text, None)
+        cfg = load_config(CONFIG_PATH)     # RF5: đọc mới mỗi lượt — hạ quyền có hiệu lực ngay
+        say = await asyncio.to_thread(run_turn, cfg, bb, text, None)
         # CHỈ gửi turn MỚI của lượt này, BỎ turn user (client đã tự hiện) → hết duplicate
         for turn in bb.turns()[before:]:
             if turn.get("speaker") == "user":
@@ -458,7 +456,7 @@ async def ws(sock: WebSocket):
             await sock.send_text(json.dumps({"type": "turn", **turn}, ensure_ascii=False))
         await sock.send_text(json.dumps({"type": "pending_off"}))
         if voice_on:               # CHỈ chạy OmniVoice khi user bật nghe → tiết kiệm tài nguyên
-            audio = await asyncio.to_thread(tts.synthesize, say, CFG.instances[0].voice)
+            audio = await asyncio.to_thread(tts.synthesize, say, cfg.instances[0].voice)
             await sock.send_text(json.dumps({"type": "say", "audio_url": f"/audio?p={audio}"}))
 
 @app.get("/audio")

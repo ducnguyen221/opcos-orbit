@@ -63,10 +63,10 @@ Chỉnh sửa `config.json` (copy từ `config.example.json`):
 {
   "settings": { "max_rounds": 3, "cli_timeout": 120 },
   "instances": [
-    { "name": "lead-1", "engine": "claude", "role": "Lead", "voice": "" },
-    { "name": "coder-1", "engine": "codex", "role": "Coder", "voice": "" },
-    { "name": "researcher-1", "engine": "agy", "role": "Researcher", "voice": "" },
-    { "name": "draft-1", "engine": "ollama", "role": "Drafter", "model": "qwen2.5:7b" }
+    { "name": "lead-1", "engine": "claude", "role": "Lead", "voice": "", "autonomy": "suggest" },
+    { "name": "coder-1", "engine": "codex", "role": "Coder", "voice": "", "autonomy": "suggest" },
+    { "name": "researcher-1", "engine": "agy", "role": "Researcher", "voice": "", "autonomy": "suggest" },
+    { "name": "draft-1", "engine": "ollama", "role": "Drafter", "model": "qwen2.5:7b", "autonomy": "suggest" }
   ]
 }
 ```
@@ -80,6 +80,15 @@ Chỉnh sửa `config.json` (copy từ `config.example.json`):
 - `instances[].voice` — voice profile OmniVoice khi đọc `[SAY: ...]` (để trống nếu
   không dùng TTS).
 - `instances[].model` — chỉ dùng với engine `ollama` (mặc định `qwen2.5:7b`).
+- `instances[].autonomy` — mức tự trị: `suggest` (mặc định) | `auto-safe` | `full`.
+  **Dưới `full`, instance không ghi được gì**: `claude` và `codex` chạy ở chế độ chỉ-đọc
+  (prompt đi qua stdin, bỏ cấu hình/MCP/hook của người dùng); `gemini` và `agy` không có
+  chế độ chỉ-đọc kiểm được nên **bị từ chối** cho tới khi bạn nâng lên `full`; `ollama` không có
+  công cụ nên không đổi. Muốn một instance ghi được (hoặc dùng `gemini`/`agy`): tự sửa
+  `"autonomy": "full"` trong `config.json` cục bộ (không commit); API chỉ cho hạ mức, không
+  cho nâng. Việc Lead giao chạy ở mức thấp hơn của (Lead, instance đích). Cấu hình được đọc
+  lại mỗi lượt hội thoại.
+- `instances[].skip_permissions` — chỉ `agy`: thêm cờ bỏ-qua-quyền khi và chỉ khi `autonomy` là `full`.
 
 ## Marker cố định
 

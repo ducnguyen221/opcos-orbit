@@ -17,6 +17,23 @@ def autonomy_change_allowed(current, requested) -> bool | None:
     return AUTONOMY_RANK[requested] <= cur
 
 
+def effective_autonomy(a, b) -> str:
+    """Mức thấp hơn của hai mức (RF4: việc giao đi chạy ở min(Lead, đích)); thiếu/lạ => suggest."""
+    lo = min(AUTONOMY_RANK.get(a, 0), AUTONOMY_RANK.get(b, 0))
+    return next(l for l, r in AUTONOMY_RANK.items() if r == lo)
+
+
+def is_secret_path(path) -> bool:
+    """Đường đi qua thư mục `.secret` (kho secret của máy) => luôn cấm nạp."""
+    if not isinstance(path, str):
+        return True
+    try:
+        parts = os.path.normcase(os.path.realpath(path)).replace("\\", "/").split("/")
+    except OSError:
+        return True
+    return ".secret" in parts
+
+
 def _norm(p: str) -> str:
     return os.path.normcase(os.path.realpath(p))
 

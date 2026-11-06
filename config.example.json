@@ -1,5 +1,5 @@
 { "settings": { "max_rounds": 3, "cli_timeout": 120 },
   "instances": [
-    { "name": "lead-1", "engine": "claude", "role": "Lead", "voice": "" },
-    { "name": "coder-1", "engine": "codex", "role": "Coder", "voice": "" },
-    { "name": "researcher-1", "engine": "gemini", "role": "Researcher", "voice": "" } ] }
+    { "name": "lead-1", "engine": "claude", "role": "Lead", "voice": "", "autonomy": "suggest" },
+    { "name": "coder-1", "engine": "codex", "role": "Coder", "voice": "", "autonomy": "suggest" },
+    { "name": "researcher-1", "engine": "gemini", "role": "Researcher", "voice": "", "autonomy": "suggest" } ] }
