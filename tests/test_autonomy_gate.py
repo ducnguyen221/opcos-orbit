@@ -172,7 +172,7 @@ CLAUDE_RO = ["claude", "-p", "--restricted", "--permission-mode", "plan",
              "--permission-prompts", "none", "--tools", "Read,Grep,Glob",
              "--strict-mcp-config", "--disable-slash-commands", "--append-system-prompt"]
 CODEX_RO = ["codex", "exec", "--ignore-user-config", "--ignore-rules", "--sandbox", "read-only",
-            "-c", "approval_policy=never", "--skip-git-repo-check", "-"]
+            "-c", "approval_policy=never", "--skip-git-repo-check"]   # vòng 3: bỏ "-" trần (PS 5.1 -File coi là tên tham số rỗng); codex exec không có prompt đối số thì đọc stdin
 
 
 @pytest.mark.parametrize("lvl", BELOW_FULL)
@@ -319,3 +319,14 @@ def test_suggest_via_cmd_shim_prompt_in_stdin_not_argv(monkeypatch, spawn, engin
     assert argv[:3] == ["cmd", "/c", r"C:\x\shim.cmd"]
     assert not any(adapters._CMD_META.search(a) for a in argv[3:])
     assert nasty in spawn.procs[0].stdin.data
+
+
+@pytest.mark.parametrize("engine", ["claude", "codex", "gemini", "agy"])
+@pytest.mark.parametrize("lvl", ["suggest", "auto-safe", "", "bogus", None])
+def test_no_bare_dash_in_argv_below_full(spawn, engine, lvl):  # vòng 3
+    inst = Instance(name="x", engine=engine, role="Coder", autonomy=lvl)
+    adapters.run_agent(inst, "hi", timeout=5)
+    for argv in spawn.calls:
+        assert "-" not in argv
+    if engine == "codex":
+        assert spawn.procs[0].stdin.data == "[Coder] hi"
