@@ -278,7 +278,8 @@ def test_stdin_broken_pipe_does_not_hang_or_raise(spawn, monkeypatch):
     def bad_write(self, t): raise BrokenPipeError()
     monkeypatch.setattr(_Stdin, "write", bad_write)
     inst = Instance(name="x", engine="codex", role="Coder", autonomy="suggest")
-    assert adapters.run_agent(inst, "hi", timeout=5).startswith("ok")
+    out = adapters.run_agent(inst, "hi", timeout=5)
+    assert out.splitlines()[0] == "ok" and out.splitlines()[-1].startswith("[chỉ-đọc]")
 
 
 @pytest.mark.parametrize("lvl", BELOW_FULL + ["full"])
@@ -314,7 +315,8 @@ def test_suggest_via_cmd_shim_prompt_in_stdin_not_argv(monkeypatch, spawn, engin
     nasty = 'x" & calc & "%PATH%^!'
     inst = Instance(name="c", engine=engine, role="Coder", autonomy="suggest")
     out = adapters.run_agent(inst, nasty, timeout=5)
-    assert out.startswith("ok") and len(spawn.calls) == 1
+    assert out.splitlines()[0] == "ok" and out.splitlines()[-1].startswith("[chỉ-đọc]")
+    assert len(spawn.calls) == 1
     argv = spawn.calls[0]
     assert argv[:3] == ["cmd", "/c", r"C:\x\shim.cmd"]
     assert not any(adapters._CMD_META.search(a) for a in argv[3:])
@@ -379,3 +381,13 @@ def test_role_sanitized_no_quote_or_control_in_argv(spawn, engine, lvl):  # A-RF
     for a in spawn.calls[0]:
         assert '"' not in a and "\r" not in a and "\n" not in a
         assert not a.startswith("--dangerously-skip-permissions")
+
+
+@pytest.mark.parametrize("engine", ["gemini", "codex"])
+def test_untrusted_source_advice_not_raise_autonomy(spawn, engine):  # RF-B
+    inst = Instance(name="u-1", engine=engine, role="X", autonomy="suggest")
+    inst.limit_reason = "bị giới hạn bởi tin từ ghost (nguồn không xác thực) ở mức suggest"
+    inst.limit_untrusted = True
+    out = adapters.run_agent(inst, "hi", timeout=5)
+    assert "POST /api/bus" in out and "ghost" in out
+    assert "nâng `autonomy` của nguồn" not in out

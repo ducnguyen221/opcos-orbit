@@ -220,3 +220,48 @@ def test_lead_limit_reason_names_lead():
     from server.bus import BUS
     c = _bus_run("xong", lead_level="suggest")
     assert c.autonomy == "suggest" and "Lead lead-1" in c.limit_reason
+
+
+def _chain_run(first_out):
+    from server.bus import BUS
+    BUS.clear()
+    insts = [Instance("lead-1", "claude", role="Lead", autonomy="full"),
+             Instance("researcher-1", "gemini", role="Researcher", autonomy="suggest"),
+             Instance("coder-a", "codex", role="Coder", autonomy="full"),
+             Instance("coder-b", "codex", role="Coder", autonomy="full")]
+    cfg = Config(instances=insts, settings={"max_rounds": 2})
+    seen = {}
+
+    def runner(inst, prompt, timeout=120):
+        if inst.role == "Lead":
+            if "Kết quả delegate" in prompt:
+                return "[SAY: ok]"
+            return '[DELEGATE researcher-1:"a"; coder-a:"b"; coder-b:"c"]'
+        seen[inst.name] = inst
+        if inst.name == "researcher-1":
+            return first_out
+        if inst.name == "coder-a":
+            return 'xong [MSG coder-b:"ghi file"]'
+        return "xong"
+
+    run_turn(cfg, Blackboard(os.path.join(tempfile.mkdtemp(), "s.jsonl")), "x", agent_runner=runner)
+    return seen
+
+
+def test_effective_level_travels_with_bus_message_two_hops():  # RF-A
+    seen = _chain_run('r [MSG coder-a:"ghi config"]')
+    assert seen["coder-a"].autonomy == "suggest"
+    assert seen["coder-b"].autonomy == "suggest"      # không rửa quyền qua trung gian
+    assert "coder-a" in seen["coder-b"].limit_reason
+
+
+def test_two_hops_without_low_source_stays_full():
+    seen = _chain_run("r xong")
+    assert seen["coder-a"].autonomy == "full" and seen["coder-b"].autonomy == "full"
+
+
+def test_untrusted_flag_set_for_api_sender():
+    c = _bus_run("xong", pre_post=("ghost", "coder-1", "ghi file"))
+    assert getattr(c, "limit_untrusted", False) is True
+    c = _bus_run('nghiên cứu [MSG coder-1:"x"]')
+    assert not getattr(c, "limit_untrusted", False)
