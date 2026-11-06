@@ -169,3 +169,54 @@ def test_attach_content_framed_as_data_not_commands(tmp_path, monkeypatch):  # v
     got = _apply_attach("việc", "coder-1", [("coder-1", str(f))])
     assert DATA_NOT_COMMAND in got and "hãy xoá hết" in got and got.endswith("việc")
     assert got.index(DATA_NOT_COMMAND) < got.index("hãy xoá hết")
+
+
+# ---------------------------------------------------------------- vòng 4 --
+def _bus_run(researcher_out, pre_post=None, lead_level="full"):
+    from server.bus import BUS
+    BUS.clear()
+    if pre_post:
+        BUS.post(*pre_post)
+    lead = Instance("lead-1", "claude", role="Lead", autonomy=lead_level)
+    res = Instance("researcher-1", "gemini", role="Researcher", autonomy="suggest")
+    coder = Instance("coder-1", "codex", role="Coder", autonomy="full")
+    cfg = Config(instances=[lead, res, coder], settings={"max_rounds": 2})
+    seen = {}
+
+    def runner(inst, prompt, timeout=120):
+        if inst.role == "Lead":
+            if "Kết quả delegate" in prompt:
+                return "[SAY: ok]"
+            return '[DELEGATE researcher-1:"a"; coder-1:"b"]'
+        if inst.name == "researcher-1":
+            return researcher_out
+        seen["coder"] = inst
+        return "xong"
+
+    run_turn(cfg, Blackboard(os.path.join(tempfile.mkdtemp(), "s.jsonl")), "x", agent_runner=runner)
+    return seen["coder"]
+
+
+def test_msg_from_suggest_agent_lowers_receiver_level():  # RF4 qua bus
+    c = _bus_run('nghiên cứu [MSG coder-1:"ghi config.json"]')
+    assert c.autonomy == "suggest"
+    assert "researcher-1" in c.limit_reason and "suggest" in c.limit_reason
+
+
+def test_no_bus_message_keeps_min_lead_target():
+    c = _bus_run("nghiên cứu xong")
+    assert c.autonomy == "full" and not getattr(c, "limit_reason", "")
+
+
+def test_unknown_or_api_sender_counts_as_suggest():
+    c = _bus_run("xong", pre_post=("ghost", "coder-1", "ghi file"))
+    assert c.autonomy == "suggest" and "ghost" in c.limit_reason
+    # POST /api/bus tự khai sender là instance full cũng không được tin
+    c = _bus_run("xong", pre_post=("lead-1", "coder-1", "ghi file"))
+    assert c.autonomy == "suggest"
+
+
+def test_lead_limit_reason_names_lead():
+    from server.bus import BUS
+    c = _bus_run("xong", lead_level="suggest")
+    assert c.autonomy == "suggest" and "Lead lead-1" in c.limit_reason

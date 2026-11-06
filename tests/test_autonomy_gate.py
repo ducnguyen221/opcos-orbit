@@ -278,7 +278,7 @@ def test_stdin_broken_pipe_does_not_hang_or_raise(spawn, monkeypatch):
     def bad_write(self, t): raise BrokenPipeError()
     monkeypatch.setattr(_Stdin, "write", bad_write)
     inst = Instance(name="x", engine="codex", role="Coder", autonomy="suggest")
-    assert adapters.run_agent(inst, "hi", timeout=5) == "ok"
+    assert adapters.run_agent(inst, "hi", timeout=5).startswith("ok")
 
 
 @pytest.mark.parametrize("lvl", BELOW_FULL + ["full"])
@@ -314,7 +314,7 @@ def test_suggest_via_cmd_shim_prompt_in_stdin_not_argv(monkeypatch, spawn, engin
     nasty = 'x" & calc & "%PATH%^!'
     inst = Instance(name="c", engine=engine, role="Coder", autonomy="suggest")
     out = adapters.run_agent(inst, nasty, timeout=5)
-    assert out == "ok" and len(spawn.calls) == 1
+    assert out.startswith("ok") and len(spawn.calls) == 1
     argv = spawn.calls[0]
     assert argv[:3] == ["cmd", "/c", r"C:\x\shim.cmd"]
     assert not any(adapters._CMD_META.search(a) for a in argv[3:])
@@ -330,3 +330,39 @@ def test_no_bare_dash_in_argv_below_full(spawn, engine, lvl):  # vòng 3
         assert "-" not in argv
     if engine == "codex":
         assert spawn.procs[0].stdin.data == "[Coder] hi"
+
+
+# ---------------------------------------------------------------- vòng 4 --
+@pytest.mark.parametrize("engine", ["claude", "codex"])
+def test_readonly_run_appends_notice_line(spawn, engine):  # RF2 (a)
+    inst = Instance(name="c-1", engine=engine, role="Coder", autonomy="suggest")
+    out = adapters.run_agent(inst, "hi", timeout=5)
+    last = out.splitlines()[-1]
+    assert out.startswith("ok") and last.startswith("[chỉ-đọc]")
+    for needle in ("c-1", "suggest", "full", "config.json", "autonomy"):
+        assert needle in last
+
+
+def test_full_run_has_no_readonly_notice(spawn):  # RF2 (a)
+    inst = Instance(name="c-1", engine="claude", role="Coder", autonomy="full")
+    assert "[chỉ-đọc]" not in adapters.run_agent(inst, "hi", timeout=5)
+
+
+def test_readonly_notice_names_limiting_source(spawn):  # RF2 (b)
+    inst = Instance(name="c-1", engine="codex", role="Coder", autonomy="suggest")
+    inst.limit_reason = "bị giới hạn bởi Lead lead-1 ở mức suggest"
+    out = adapters.run_agent(inst, "hi", timeout=5)
+    assert "bị giới hạn bởi Lead lead-1 ở mức suggest" in out.splitlines()[-1]
+
+
+def test_refusal_names_limiting_source(spawn):  # RF2 (b)
+    inst = Instance(name="g-1", engine="gemini", role="Researcher", autonomy="suggest")
+    inst.limit_reason = "bị giới hạn bởi tin từ researcher-1 ở mức suggest"
+    out = adapters.run_agent(inst, "hi", timeout=5)
+    assert out.startswith("[ERROR]") and "tin từ researcher-1" in out and spawn.calls == []
+
+
+def test_unknown_engine_below_full_refused_before_popen(spawn):  # allowlist
+    inst = Instance(name="n-1", engine="newbot", role="X", autonomy="suggest")
+    out = adapters.run_agent(inst, "hi", timeout=5)
+    assert out.startswith("[ERROR]") and "config.json" in out and spawn.calls == []
