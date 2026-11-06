@@ -35,19 +35,37 @@ def _uses_stdin(inst: Instance, level: str) -> bool:
     return level != "full" and inst.engine in _READONLY
 
 
+_STRIP = {c: None for c in [*range(32), 127, ord(chr(34))]}   # ký tự điều khiển + dấu nháy kép
+
+
+def _clean_role(role) -> str:
+    """Role do người dùng đặt đi vào argv: bỏ dấu `"` (shim .ps1 PS 5.1 tách đối số) và ký tự
+    điều khiển/xuống dòng. Loại bỏ chứ không từ chối để không chặn người dùng."""
+    return str(role).translate(_STRIP)
+
+
+def _limit_note(inst) -> str:
+    r = getattr(inst, "limit_reason", None)
+    return f" ({r})" if r else ""
+
+
 def readonly_refusal(inst: Instance, level: str) -> str | None:
-    """FR2/FR10: dưới full mà engine không có chế độ chỉ-đọc kiểm được => lý do từ chối (trước Popen)."""
-    if level == "full" or inst.engine not in ("gemini", "agy"):
+    """FR2/FR10: dưới full mà engine không có chế độ chỉ-đọc kiểm được (allowlist: chỉ claude/codex
+    có cờ chỉ-đọc, ollama không có công cụ) => lý do từ chối (trước Popen)."""
+    if level == "full" or inst.engine in _READONLY or inst.engine == "ollama":
         return None
-    return (f"instance {inst.name} đang ở mức {level}; engine {inst.engine} không có chế độ chỉ-đọc "
-            f"kiểm được nên không chạy ở mức này. Muốn chạy: nâng `autonomy` của instance này lên "
+    how = ("nâng `autonomy` của nguồn giới hạn" if getattr(inst, "limit_reason", None)
+           else "nâng `autonomy` của instance này")
+    return (f"instance {inst.name} đang ở mức {level}{_limit_note(inst)}; engine {inst.engine} không có "
+            f"chế độ chỉ-đọc kiểm được nên không chạy ở mức này. Muốn chạy: {how} lên "
             f'"full" trong config.json cục bộ.')
 
 
 def build_command(inst: Instance, prompt: str, level: str | None = None) -> list[str]:
     """Chỉ gọi qua run_agent; không tự áp cổng (check_autonomy/readonly_refusal nằm ở run_agent)."""
     level = _norm_level(level, inst)
-    role_sys = f"Bạn đóng vai {inst.role} trong một nhóm agent do Lead điều phối. Trả lời ngắn gọn, đúng vai."
+    role = _clean_role(inst.role)
+    role_sys = f"Bạn đóng vai {role} trong một nhóm agent do Lead điều phối. Trả lời ngắn gọn, đúng vai."
     if _uses_stdin(inst, level):
         if inst.engine == "claude":
             cmd = ["claude"] + _READONLY["claude"] + ["--append-system-prompt", role_sys]
@@ -65,14 +83,14 @@ def build_command(inst: Instance, prompt: str, level: str | None = None) -> list
             cmd += ["--resume", session_id]
         return cmd
     if inst.engine == "codex":
-        return ["codex", "exec", f"[{inst.role}] {prompt}"]
+        return ["codex", "exec", f"[{role}] {prompt}"]
     if inst.engine == "gemini":
-        return ["gemini", "-p", f"[{inst.role}] {prompt}"]
+        return ["gemini", "-p", f"[{role}] {prompt}"]
     if inst.engine == "agy":
         # Antigravity CLI (Google login free, không cần API key). Headless thiếu
         # --dangerously-skip-permissions thì có thể treo chờ duyệt tool (timeout sẽ kill).
         # AN TOÀN LÀ MẶC ĐỊNH: cờ chỉ thêm khi opt-in rõ (skip_permissions) VÀ autonomy=full.
-        cmd = ["agy", "-p", f"[{inst.role}] {prompt}"]
+        cmd = ["agy", "-p", f"[{role}] {prompt}"]
         if _wants_dangerous(inst):
             log.warning("agy %s chạy với %s (autonomy=full + skip_permissions)", inst.name, DANGEROUS_FLAG)
             cmd.append(DANGEROUS_FLAG)
@@ -186,7 +204,7 @@ def run_agent(inst: Instance, prompt: str, timeout: int = 120) -> str:
         allowed = False
     if not allowed:
         msg = (f"instance {inst.name}: autonomy '{_level(inst)}' không cho phép action '{action}'. "
-               f"Nâng `autonomy` lên \"full\" trong config.json cục bộ nếu thật sự cần.")
+               f"Nâng `autonomy` lên \"full\" trong config.json cục bộ nếu thật sự cần.{_limit_note(inst)}")
         job.finish(1, msg)
         return f"[ERROR] {inst.name}: {msg}"
     if inst.engine == "ollama":
@@ -231,7 +249,12 @@ def run_agent(inst: Instance, prompt: str, timeout: int = 120) -> str:
         full = job.full_output()
         job.finish(p.returncode)
         result = full.strip()
-        return result if result else f"[ERROR] {inst.name}: rỗng (exit {p.returncode})"
+        if not result:
+            return f"[ERROR] {inst.name}: rỗng (exit {p.returncode})"
+        if via_stdin:       # FR10: báo rõ đang chỉ-đọc (dòng riêng, tách khỏi output engine)
+            result += (f"\n\n[chỉ-đọc] instance {inst.name} chạy ở mức {level}{_limit_note(inst)} — "
+                       f'không ghi được tệp; muốn cho ghi: nâng `autonomy` lên "full" trong config.json cục bộ')
+        return result
     except Exception as e:
         job.finish(1, str(e))
         return f"[ERROR] {inst.name}: {e}"
