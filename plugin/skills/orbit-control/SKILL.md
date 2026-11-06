@@ -52,30 +52,54 @@ Báo: «Orbit đang chạy tại http://localhost:7788». Trạng thái khác `s
 
 ## Tắt
 Trigger: tắt / dừng / đóng / stop / turn off / kill + (orbit | console | giao diện agent | UI…).
-**Chỉ dừng tiến trình đã xác minh là Orbit.** Không `Stop-Process -Force` mù theo cổng. Chạy MỘT khối (thu ứng viên, xác minh, dừng, xoá pid, báo):
+**Chỉ dừng tiến trình đã xác minh là Orbit.** Không `Stop-Process -Force` mù theo cổng. Chạy MỘT khối (thu ứng viên, xác minh, dừng, xoá pid, in mã):
 ```powershell
+$port = 7788
 $opcos = if ($env:OPCOS_ROOT) { $env:OPCOS_ROOT } else { Join-Path $HOME 'OpcOS' }
 $root  = [IO.Path]::GetFullPath((Join-Path $opcos 'orbit')).TrimEnd('\')
+$short = try { (New-Object -ComObject Scripting.FileSystemObject).GetFolder($root).ShortPath } catch { $root }
 $pf = Join-Path $root '.server.pid'
-$cands = @()
-if (Test-Path $pf) { $n = 0; if ([int]::TryParse(("$(Get-Content $pf -ErrorAction SilentlyContinue | Select-Object -First 1)").Trim(), [ref]$n) -and $n -gt 0) { $cands += $n } }
-$cands += @(Get-NetTCPConnection -LocalPort 7788 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { [int]$_.OwningProcess })
+function Get-P($i) { Get-CimInstance Win32_Process -Filter "ProcessId=$i" -ErrorAction SilentlyContinue }
+function Test-InOrbit($p) { $e = "$($p.ExecutablePath)"; $c = "$($p.CommandLine)"
+  ($e -and [IO.Path]::GetFullPath($e).StartsWith($root + '\', [StringComparison]::OrdinalIgnoreCase)) -or
+  $c.IndexOf($root, [StringComparison]::OrdinalIgnoreCase) -ge 0 -or $c.IndexOf($short, [StringComparison]::OrdinalIgnoreCase) -ge 0 }
+$fromFile = 0
+if (Test-Path $pf) { $n = 0; if ([int]::TryParse(("$(Get-Content $pf -ErrorAction SilentlyContinue | Select-Object -First 1)").Trim(), [ref]$n) -and $n -gt 0) { $fromFile = $n } }
+$cands = @(); if ($fromFile) { $cands += $fromFile }
+$cands += @(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | ForEach-Object { [int]$_.OwningProcess })
 $cands = @($cands | Where-Object { $_ -gt 0 } | Select-Object -Unique)
-$stopped = 0
+$handled = @(); $stopped = 0; $failed = 0; $any = $false
 foreach ($id in $cands) {
-  $w = Get-CimInstance Win32_Process -Filter "ProcessId=$id" -ErrorAction SilentlyContinue
-  if (-not $w) { "PID $id không còn chạy (tệp .server.pid cũ)."; continue }
-  $cmd = "$($w.CommandLine)"; $exe = "$($w.ExecutablePath)"
-  $ok = ($cmd -match 'uvicorn') -and ($cmd -match 'server\.app') -and
-        ($exe -and [IO.Path]::GetFullPath($exe).StartsWith($root + '\', [StringComparison]::OrdinalIgnoreCase))
-  if ($ok) { taskkill /PID $id /T /F | Out-Null; $stopped++; "Đã tắt Orbit (PID $id)." }
-  else { "PID $id ($($w.Name)) KHÔNG phải Orbit của $root - không tắt." }
+  if ($handled -contains $id) { continue }
+  $w = Get-P $id
+  if (-not $w) { if ($id -eq $fromFile -and $stopped -eq 0) { "GONE pid=$id" }; continue }
+  $chain = @($w); $cur = $w
+  for ($k = 0; $k -lt 5; $k++) { $par = Get-P $cur.ParentProcessId
+    if (-not $par -or $par.CreationDate -gt $cur.CreationDate) { break }; $chain += $par; $cur = $par }
+  $marker = @($chain | Where-Object { "$($_.CommandLine)" -match 'uvicorn' -and "$($_.CommandLine)" -match 'server\.app' }).Count -gt 0
+  $inO = @($chain | Where-Object { Test-InOrbit $_ })
+  if ($marker -and $inO.Count -gt 0) {
+    $any = $true; $t = $inO[-1].ProcessId; $handled += @($chain | ForEach-Object { $_.ProcessId })
+    taskkill /PID $t /T /F | Out-Null; Start-Sleep -Milliseconds 500
+    if (Get-Process -Id $t -ErrorAction SilentlyContinue) { $failed++; "STOP-FAILED pid=$t" } else { $stopped++; "STOPPED pid=$t" }
+  } else { "NOT-ORBIT pid=$id name=$($w.Name)" }
 }
-if ((Test-Path $pf) -and ($stopped -gt 0 -or -not (@($cands) | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue }))) { Remove-Item $pf -Force -ErrorAction SilentlyContinue }
-if ($cands.Count -eq 0) { 'Orbit không chạy.' }
+if ((Test-Path $pf) -and $failed -eq 0) { Remove-Item $pf -Force -ErrorAction SilentlyContinue; if (-not $any) { 'STALE-PIDFILE' } }
+if ($cands.Count -eq 0) { 'NOT-RUNNING' }
 ```
-- Tiến trình lạ nghe 7788 (hoặc PID trong `.server.pid` đã bị tái dùng) → khối chỉ **báo PID + tên**, không tắt; nói lại cho Đức.
-- «Là Orbit» = dòng lệnh có `uvicorn` + `server.app` và tệp chạy nằm dưới thư mục Orbit đó (không phân biệt hoa thường, đã chuẩn hoá tên 8.3). Orbit chạy từ một worktree con **bên trong** thư mục Orbit cũng được coi là Orbit; từ nơi khác thì coi là lạ.
+Khối in mã ASCII (tránh lỗi font); báo lại Đức bằng câu tiếng Việt:
+
+| Mã | Báo |
+|---|---|
+| `STOPPED pid=N` | Đã tắt Orbit (PID N, cả cây tiến trình). |
+| `STOP-FAILED pid=N` | Không tắt được PID N; giữ `.server.pid`, nói Đức, đừng thử cách mù. |
+| `NOT-ORBIT pid=N name=X` | PID N (X) giữ cổng 7788 hoặc có trong `.server.pid` nhưng KHÔNG phải Orbit của máy này — không tắt, nhờ Đức xem. |
+| `GONE pid=N` | `.server.pid` trỏ PID N đã không còn chạy (tệp cũ, đã xoá). |
+| `STALE-PIDFILE` | `.server.pid` cũ/trỏ tiến trình lạ nên đã xoá (không đụng tiến trình đó); Orbit không chạy. |
+| `NOT-RUNNING` | Orbit không chạy. |
+
+- «Là Orbit» = chính tiến trình hoặc tổ tiên (tối đa 5 cấp) có `uvicorn` + `server.app` trong dòng lệnh, và có tiến trình trong chuỗi có tệp chạy dưới thư mục Orbit hoặc dòng lệnh chứa đường Orbit (không phân biệt hoa thường; cả tên dài lẫn 8.3). Trên Windows venv chạy `uvicorn.exe` → `python.exe` của venv → python gốc ngoài thư mục; python gốc nghe cổng vẫn được nhận nhờ tổ tiên. Khi tắt, khối dừng tổ tiên Orbit cao nhất rồi `/T` dọn cả cây.
+- Orbit chạy từ một worktree con **bên trong** thư mục Orbit cũng được coi là Orbit; từ nơi khác thì coi là lạ.
 - `stop.ps1` của Orbit chỉ kiểm PID trong `.server.pid` còn sống chứ không xác minh đó là Orbit, nên skill dùng khối trên thay vì gọi nó mù.
 
 ## Nguyên tắc
