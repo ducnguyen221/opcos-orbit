@@ -167,3 +167,29 @@ def test_agents_scan_rejects_outside_roots(tmp_path, monkeypatch):
     outside.mkdir(exist_ok=True)
     r = client.post("/api/agents/scan", json={"path": str(outside)})
     assert r.status_code == 403
+
+
+# (RF5) cấu hình đọc lại mỗi lượt WebSocket
+def test_websocket_turn_reads_fresh_config(tmp_path, monkeypatch):
+    client, app_module, cfg = _make(tmp_path, monkeypatch, INST)
+    monkeypatch.setattr(app_module, "SESS", str(tmp_path / "sessions" / "current.jsonl"))
+    seen = {}
+
+    def fake_turn(c, bb, text, runner):
+        seen["levels"] = {i.name: i.autonomy for i in c.instances}
+        return "ok"
+
+    monkeypatch.setattr(app_module, "run_turn", fake_turn)
+    # hạ quyền c-1 xuống suggest SAU khi server đã nạp cấu hình
+    lowered = [dict(i) for i in INST]
+    lowered[1]["autonomy"] = "suggest"
+    cfg.write_text(json.dumps({"instances": lowered, "settings": {}}), encoding="utf-8")
+    from starlette.websockets import WebSocketDisconnect
+    try:                      # server không bắt WebSocketDisconnect khi client đóng: bình thường
+        with client.websocket_connect("/ws") as ws:
+            ws.send_text(json.dumps({"type": "text", "data": "hi"}))
+            while json.loads(ws.receive_text()).get("type") != "pending_off":
+                pass
+    except WebSocketDisconnect:
+        pass
+    assert seen["levels"]["c-1"] == "suggest"
