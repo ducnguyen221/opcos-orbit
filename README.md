@@ -28,7 +28,7 @@ hiện transcript trực tiếp trên trình duyệt. Chạy trên nền [opcos]
 
 ## Cài đặt
 
-Yêu cầu: Python 3.11+, các CLI đã cài + đăng nhập sẵn (chọn CLI nào dùng): `claude`,
+Yêu cầu: Python 3.11+ (đã kiểm với 3.12.10; `requirements.txt` không ghim phiên bản, chưa đo 3.14), các CLI đã cài + đăng nhập sẵn (chọn CLI nào dùng): `claude`,
 `codex`, `gemini`/`agy`. **OmniVoice** (mặc định `~/.tts/omnivoice`, hoặc thư mục trong `OMNIVOICE_DIR`)
 dùng cho Voice Studio/TTS — tuỳ chọn (tắt giọng vẫn dùng được console ở dạng text-only).
 
@@ -54,6 +54,22 @@ Script sẽ:
 ```
 
 Mở `http://localhost:7788`. Nhấn giữ nút mic để nói (hoặc gõ text).
+
+## Cài như plugin của OpcOS
+
+Orbit là thành phần tuỳ chọn của OpcOS (chỉ Windows, cần `OPCOS_ROOT`, mặc định `~/OpcOS`).
+Cài cùng OpcOS: `install.ps1 -Siblings opcos-orbit` (của OpcOS) — clone Orbit vào `<OPCOS_ROOT>\orbit` và cài plugin `orbit`.
+Cài plugin riêng:
+
+```powershell
+claude plugin marketplace add ducnguyen221/opcos-orbit
+claude plugin install orbit@opcos-orbit
+codex plugin marketplace add ducnguyen221/opcos-orbit
+codex plugin add orbit@opcos-orbit
+```
+
+Plugin chỉ chứa skill `orbit-control` (giới thiệu / cài / bật / tắt Orbit); ứng dụng vẫn chạy từ thư mục `orbit` của OpcOS.
+Nói «cài Orbit», «bật Orbit», «tắt Orbit» hoặc «mở agent console» để skill hướng dẫn.
 
 ## Cấu hình
 
