@@ -10,7 +10,7 @@ description: "Introduce, install, start and stop OpcOS Orbit - the optional loca
 Orbit (trước gọi Agent Console) là repo git riêng, **tuỳ chọn**, ở `<opcos>\orbit`. "orbit / agent console / console / giao diện quản lý agent / UI agent" = CÙNG 1 thứ.
 
 ## Orbit là gì
-Web local (chỉ nghe localhost, cổng 7788) để điều phối và đàm thoại với nhiều agent (Claude, Codex, Gemini/agy, Ollama): Mission Control theo dõi job working/blocked/done, voice STT/TTS (tuỳ chọn), System pane đọc registry của OpcOS. Nặng vài GB, cần Python 3.10–3.13. Không bắt buộc.
+Web local (chỉ nghe localhost, cổng 7788) để điều phối và đàm thoại với nhiều agent (Claude, Codex, Gemini/agy, Ollama): Mission Control theo dõi job working/blocked/done, voice STT/TTS (tuỳ chọn), System pane đọc registry của OpcOS. Nặng vài GB, cần Python 3.11+. Không bắt buộc.
 
 Dưới `full`: claude/codex chỉ đọc, gemini/agy bị từ chối; nâng `autonomy` trong `config.json` cục bộ (chi tiết: `README.md` Orbit).
 
