@@ -29,6 +29,7 @@ class Message:
     text: str
     ts: float
     consumed: bool = False
+    level: str | None = None  # mức HIỆU LỰC của lượt đã phát tin (orchestrator ghi); None = không rõ
     internal: bool = False  # True = do orchestrator đăng (sender đã xác thực); API/ngoài = False
 
     def to_dict(self) -> dict:
@@ -40,13 +41,14 @@ class AgentBus:
     def __init__(self, maxlen: int = 200):
         self._msgs: "deque[Message]" = deque(maxlen=maxlen)
 
-    def post(self, sender: str, recipient: str, text: str, internal: bool = False) -> Message | None:
+    def post(self, sender: str, recipient: str, text: str, internal: bool = False,
+             level: str | None = None) -> Message | None:
         text = (text or "").strip()
         if not text:
             return None
         m = Message(id=next(_id), sender=(sender or "?").strip(),
                     recipient=(recipient or BROADCAST).strip(), text=text, ts=time.time(),
-                    internal=internal)
+                    internal=internal, level=level)
         with _LOCK:
             self._msgs.append(m)
         return m

@@ -102,7 +102,7 @@ Chỉnh sửa `config.json` (copy từ `config.example.json`):
   chế độ chỉ-đọc kiểm được nên **bị từ chối** cho tới khi bạn nâng lên `full`; `ollama` không có
   công cụ nên không đổi. Muốn một instance ghi được (hoặc dùng `gemini`/`agy`): tự sửa
   `"autonomy": "full"` trong `config.json` cục bộ (không commit); API chỉ cho hạ mức, không
-  cho nâng. Việc Lead giao chạy ở mức thấp hơn của (Lead, instance đích). Cấu hình được đọc
+  cho nâng. Việc Lead giao chạy ở mức thấp nhất của Lead, instance đích và mọi người gửi tin trên bus được nạp vào prompt (mức hiệu lực của lượt gửi; tin từ API hoặc nguồn lạ tính là `suggest`). Cấu hình được đọc
   lại mỗi lượt hội thoại.
   **Lưu ý:** mức dưới `full` không ghi được nhưng vẫn ĐỌC được tệp (codex chỉ-đọc đọc được toàn đĩa và
   có công cụ web) — đừng giao instance mức thấp nội dung không tin cậy cạnh dữ liệu nhạy cảm.

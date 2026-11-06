@@ -49,16 +49,22 @@ def _limit_note(inst) -> str:
     return f" ({r})" if r else ""
 
 
+def _advice(inst) -> str:
+    if getattr(inst, "limit_untrusted", False):
+        return ("bỏ tin không xác thực khỏi inbox (đừng dùng `POST /api/bus` cho tin cần quyền) "
+                "rồi giao lại")
+    if getattr(inst, "limit_reason", None):
+        return 'nâng `autonomy` của nguồn giới hạn lên "full" trong config.json cục bộ'
+    return 'nâng `autonomy` của instance này lên "full" trong config.json cục bộ'
+
+
 def readonly_refusal(inst: Instance, level: str) -> str | None:
     """FR2/FR10: dưới full mà engine không có chế độ chỉ-đọc kiểm được (allowlist: chỉ claude/codex
     có cờ chỉ-đọc, ollama không có công cụ) => lý do từ chối (trước Popen)."""
     if level == "full" or inst.engine in _READONLY or inst.engine == "ollama":
         return None
-    how = ("nâng `autonomy` của nguồn giới hạn" if getattr(inst, "limit_reason", None)
-           else "nâng `autonomy` của instance này")
     return (f"instance {inst.name} đang ở mức {level}{_limit_note(inst)}; engine {inst.engine} không có "
-            f"chế độ chỉ-đọc kiểm được nên không chạy ở mức này. Muốn chạy: {how} lên "
-            f'"full" trong config.json cục bộ.')
+            f"chế độ chỉ-đọc kiểm được nên không chạy ở mức này. Muốn chạy: {_advice(inst)}.")
 
 
 def build_command(inst: Instance, prompt: str, level: str | None = None) -> list[str]:
@@ -253,7 +259,7 @@ def run_agent(inst: Instance, prompt: str, timeout: int = 120) -> str:
             return f"[ERROR] {inst.name}: rỗng (exit {p.returncode})"
         if via_stdin:       # FR10: báo rõ đang chỉ-đọc (dòng riêng, tách khỏi output engine)
             result += (f"\n\n[chỉ-đọc] instance {inst.name} chạy ở mức {level}{_limit_note(inst)} — "
-                       f'không ghi được tệp; muốn cho ghi: nâng `autonomy` lên "full" trong config.json cục bộ')
+                       f"không ghi được tệp; muốn cho ghi: {_advice(inst)}")
         return result
     except Exception as e:
         job.finish(1, str(e))
