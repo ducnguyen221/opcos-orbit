@@ -1,4 +1,4 @@
-import asyncio, base64, json, subprocess, tempfile, os
+import asyncio, base64, json, subprocess, tempfile, os, threading
 from fastapi import FastAPI, WebSocket, HTTPException, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -11,7 +11,7 @@ from server.agent_library import discover_agents, scan_folder_for_agents
 from server.instances import InstanceStore
 from server.context_manager import scan_folder, save_upload, route_context
 from server.session import SessionManager
-from server import security
+from server import security, approvals
 from server.paths import OPCOS_ROOT, upload_dir
 from server.adapters import check_autonomy
 
@@ -278,7 +278,67 @@ if os.environ.get("AGENT_CONSOLE_DEMO_JOBS") == "1":
 @app.get("/api/jobs")
 def api_jobs():
     from server import jobs
-    return {"jobs": jobs.list_jobs(), "summary": jobs.summary()}
+    summary = jobs.summary()
+    waiting = approvals.get_store().pending_count()        # việc chờ duyệt cũng là "cần chú ý"
+    summary["approvals"] = waiting
+    summary["attention"] += waiting
+    return {"jobs": jobs.list_jobs(), "summary": summary}
+
+
+# ── Duyệt quyền (bước 5, kênh UI). decided_by do ROUTE đặt ("ui"), không nhận từ body. PIN chỉ đặt bằng
+#    `python -m server.approvals set-pin` — KHÔNG có API đặt/đổi PIN. ─────────────────────────────────────
+class ApprovalDecideBody(BaseModel):
+    decision: str
+    pin: str | None = None
+    confirm_untrusted: bool = False      # xác nhận rõ khi yêu cầu đến từ nguồn không xác thực
+
+
+_APPROVAL_HTTP = {"not_found": 404, "not_pending": 409, "pin_not_set": 409, "bad_pin": 403,
+                  "pin_locked": 429, "channel_cannot_approve": 403, "log_failed": 500,
+                  "confirm_untrusted": 409, "prompt_too_long": 400}
+
+
+def _run_approved_bg(rid: str) -> None:
+    try:
+        approvals.run_approved(rid)                          # tra cứu lúc gọi (test thay được)
+    except Exception:
+        pass                                                 # kết quả/lỗi nằm ở job + yêu cầu; không làm sập luồng
+
+
+@app.get("/api/approvals")
+def api_approvals():
+    store = approvals.get_store()
+    return {"approvals": store.ui_list(), "pin_set": store.pin_configured()}
+
+
+@app.post("/api/approvals/{rid}/decide")
+def api_approval_decide(rid: str, body: ApprovalDecideBody):
+    try:
+        req = approvals.get_store().decide(rid, body.decision, "ui", pin=body.pin,
+                                           confirm_untrusted=body.confirm_untrusted)
+    except approvals.ApprovalError as e:
+        raise HTTPException(status_code=_APPROVAL_HTTP.get(e.code, 400), detail=e.code)
+    if req.state == "approved":
+        threading.Thread(target=_run_approved_bg, args=(rid,), daemon=True).start()
+    return {"ok": True, "state": req.state}
+
+
+# Kênh Kira (qua cổng Kira, loopback): CHỈ xem (không prompt) / Từ chối / Hoãn. KHÔNG có route nào Approve ở đây
+# — action ngoài {reject, defer} không khớp route => 404. decided_by = "kira" do route đặt.
+@app.get("/api/approvals/kira")
+def api_approvals_kira():
+    return {"approvals": approvals.get_store().kira_list()}
+
+
+@app.post("/api/approvals/{rid}/kira/{action}")
+def api_approval_kira(rid: str, action: str):
+    if action not in ("reject", "defer"):
+        raise HTTPException(status_code=404, detail="not found")
+    try:
+        req = approvals.get_store().decide(rid, action, "kira")
+    except approvals.ApprovalError as e:
+        raise HTTPException(status_code=_APPROVAL_HTTP.get(e.code, 400), detail=e.code)
+    return {"ok": True, "state": req.state}
 
 
 @app.post("/api/jobs/{job_id}/kill")

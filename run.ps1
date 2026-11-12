@@ -22,16 +22,7 @@ $url = "http://localhost:$port"
 
 Write-Host "Khoi dong OpcOS Orbit tai $url ..." -ForegroundColor Cyan
 
-try {
-    $lanIp = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop |
-        Where-Object { $_.InterfaceAlias -notmatch "Loopback" -and $_.IPAddress -notlike "169.254.*" } |
-        Select-Object -First 1 -ExpandProperty IPAddress)
-    if ($lanIp) {
-        Write-Host "Truy cap tu dien thoai/may khac trong cung mang LAN: http://${lanIp}:$port" -ForegroundColor DarkGray
-    }
-} catch {
-    # bo qua neu khong lay duoc IP LAN
-}
+Write-Host "Server CHI nghe localhost (127.0.0.1): dien thoai/may khac KHONG vao duoc truc tiep qua LAN. KHONG sua thanh --host 0.0.0.0 (lop chan Host/Origin khong chong duoc client LAN)." -ForegroundColor DarkGray
 Write-Host "Muon truy cap tu xa (ngoai mang LAN): dung panel 'Remote control' tren web, hoac xem huong dan trong /api/remote/toggle." -ForegroundColor DarkGray
 Write-Host "Mac dinh server CHI lang nghe localhost (an toan). Bat 'Remote' tren panel se thu goi 'claude remote-control on' neu CLI ho tro." -ForegroundColor DarkGray
 

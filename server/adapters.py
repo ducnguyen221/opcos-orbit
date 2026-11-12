@@ -1,3 +1,4 @@
+import dataclasses
 import logging
 import os
 import subprocess
@@ -198,8 +199,25 @@ def _run_ollama(inst: Instance, prompt: str, timeout: int, job) -> str:
         return f"[ERROR] {inst.name}: ollama — {e}"
 
 
-def run_agent(inst: Instance, prompt: str, timeout: int = 120) -> str:
+def _request_approval(inst: Instance, prompt: str, timeout: int = 120) -> bool:
+    """Từ chối vì mức tự trị => xin duyệt (SPEC bước 5, FR1). Trả True nếu đã tạo/gộp một yêu cầu.
+    Không bao giờ ném lỗi: kho đầy hay hỏng chỉ có nghĩa là KHÔNG có yêu cầu (vẫn từ chối như cũ)."""
+    from server import approvals
+    try:
+        approvals.get_store().create(inst, prompt, "full", timeout=timeout)
+        return True
+    except Exception:
+        return False
+
+
+def run_agent(inst: Instance, prompt: str, timeout: int = 120, *, override_level: str | None = None) -> str:
+    """`override_level` CHỈ do server.approvals.run_approved truyền (việc đã được người duyệt, chạy một lần).
+    Nó là tham số của lượt chạy, KHÔNG đọc từ Instance và KHÔNG ghi config.json; bản `inst` gốc không đổi."""
     from server import jobs
+    if override_level is not None:
+        if override_level not in _LEVELS:
+            return f"[ERROR] {inst.name}: override_level không hợp lệ"
+        inst = dataclasses.replace(inst, autonomy=override_level)
     job = jobs.create(inst.name, inst.engine, prompt,
                       session_id=getattr(inst, "session_id", None))
     # CỔNG TỰ TRỊ ở biên side-effect, TRƯỚC khi spawn/gọi engine. Fail-closed.
@@ -219,6 +237,9 @@ def run_agent(inst: Instance, prompt: str, timeout: int = 120) -> str:
         level = _level(inst)
         refusal = readonly_refusal(inst, level)
         if refusal:
+            if override_level is None and _request_approval(inst, prompt, timeout):
+                from server.approvals import PENDING_MESSAGE
+                refusal += f"\n{PENDING_MESSAGE}"          # KHÔNG kèm id: id chỉ đi qua UI/cổng Kira
             raise PermissionError(refusal)
         cmd = build_command(inst, prompt, level)
     except Exception as e:
