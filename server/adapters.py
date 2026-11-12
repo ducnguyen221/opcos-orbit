@@ -218,6 +218,30 @@ def _request_approval(inst: Instance, prompt: str, timeout: int = 120) -> bool:
 
 
 def run_agent(inst: Instance, prompt: str, timeout: int = 120, *, override_level: str | None = None) -> str:
+    """Vỏ ghi nhận (6c nhịp 1): chạy lượt rồi ghi MỘT dòng vào sổ ledger (nguồn lượt, mức, kết quả, thời lượng;
+    không prompt/output). Lỗi sổ không bao giờ làm hỏng lượt."""
+    from server import ledger
+    t0 = time.monotonic()
+    out = ""
+    try:
+        out = _run_agent_impl(inst, prompt, timeout, override_level=override_level)
+        return out
+    finally:
+        try:
+            from server.approvals import PENDING_MESSAGE
+            outcome = ("ok" if not out.startswith("[ERROR]")
+                       else "pending_approval" if PENDING_MESSAGE in out else "error")
+            if not out:
+                outcome = "error"
+            ledger.get_ledger().record(
+                instance=getattr(inst, "name", "?"), engine=getattr(inst, "engine", "?"),
+                level=override_level or _level(inst), trigger=ledger.current_trigger(),
+                outcome=outcome, seconds=time.monotonic() - t0)
+        except Exception:
+            pass
+
+
+def _run_agent_impl(inst: Instance, prompt: str, timeout: int = 120, *, override_level: str | None = None) -> str:
     """`override_level` CHỈ do server.approvals.run_approved truyền (việc đã được người duyệt, chạy một lần).
     Nó là tham số của lượt chạy, KHÔNG đọc từ Instance và KHÔNG ghi config.json; bản `inst` gốc không đổi."""
     from server import jobs

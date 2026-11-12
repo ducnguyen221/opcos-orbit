@@ -11,7 +11,7 @@ from server.agent_library import discover_agents, scan_folder_for_agents
 from server.instances import InstanceStore
 from server.context_manager import scan_folder, save_upload, route_context
 from server.session import SessionManager
-from server import security, approvals, maus
+from server import security, approvals, maus, ledger
 from server.paths import OPCOS_ROOT, upload_dir
 from server.adapters import check_autonomy
 
@@ -280,6 +280,12 @@ if os.environ.get("AGENT_CONSOLE_DEMO_JOBS") == "1":
     _bus.post("lead-1", "coder-1", "researcher-1 vừa gửi 5 pattern, dùng cái #2 nhé")
     _bus.post("researcher-1", "coder-1", "pattern #2 = ring-buffer tail, xem note bus")
     _bus.post("coder-1", "all", "đã áp pattern #2 vào jobs.py, mời review")
+
+@app.get("/api/ledger/summary")
+def api_ledger_summary():
+    """Số lượt agent hôm nay theo engine + trần MỀM (chỉ cảnh báo) + nguồn lượt. Không có instance/prompt."""
+    return ledger.get_ledger().summary()
+
 
 @app.get("/api/maus/status")
 def api_maus_status():

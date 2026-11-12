@@ -479,3 +479,5 @@ select:focus, input:focus { outline: none; border-color: var(--accent); box-shad
 .maus-card { border: 1px solid var(--muted); border-radius: 8px; padding: 0.6rem 0.7rem; margin-bottom: 0.6rem; }
 .maus-row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.4rem; }
 .maus-open { display: inline-block; padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid var(--accent); text-decoration: none; }
+
+.ledger-line { font-size: 0.82rem; margin: 0.3rem 0 0.6rem; }

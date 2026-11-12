@@ -7,6 +7,15 @@ security.EXTRA_HOSTS.add("testserver")
 
 
 @pytest.fixture(autouse=True)
+def _isolated_ledger(tmp_path, monkeypatch):
+    """Sổ ghi nhận lượt agent riêng mỗi test: không ghi sessions/agent-ledger.jsonl thật."""
+    from server import ledger
+    led = ledger.Ledger(str(tmp_path / "agent-ledger.jsonl"))
+    monkeypatch.setattr(ledger, "_LEDGER", led)
+    return led
+
+
+@pytest.fixture(autouse=True)
 def _isolated_workspace(tmp_path, monkeypatch):
     """cwd riêng của instance (RF8) nằm trong tmp — test không tạo thư mục thật dưới ~/OpcOS/workspaces."""
     monkeypatch.setenv("ORBIT_WORKSPACE_ROOT", str(tmp_path / "ws"))

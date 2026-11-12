@@ -345,6 +345,7 @@ def run_approved(rid: str, store: "ApprovalStore | None" = None, runner=None) ->
     """Chạy ĐÚNG MỘT LẦN việc đã được duyệt: nội dung `prompt_final` đã lưu (không dựng lại từ inbox/attach),
     Instance dựng từ ảnh chụp với MỨC GỐC; mức chạy nâng lên chỉ qua tham số `override_level` của lượt này.
     Tin [MSG] do lượt này phát lên bus mang `level` = mức GỐC, không phải mức đã nâng (chống rửa quyền)."""
+    from server import ledger
     from server.bus import BUS
     from server.config import Instance
     from server.orchestrator import parse_markers
@@ -356,7 +357,8 @@ def run_approved(rid: str, store: "ApprovalStore | None" = None, runner=None) ->
     inst = Instance(name=snap["name"], engine=snap["engine"], role=snap["role"], session_id=snap["session_id"],
                     model=snap["model"], skip_permissions=snap["skip_permissions"], autonomy=snap["autonomy"])
     try:
-        result = runner(inst, req.prompt_final, timeout=snap.get("timeout", 120), override_level=req.target_level)
+        with ledger.trigger("approved"):
+            result = runner(inst, req.prompt_final, timeout=snap.get("timeout", 120), override_level=req.target_level)
     except Exception as e:                       # đã `consumed`: phải để lại dấu vết, không nuốt im lặng
         result = f"[ERROR] {inst.name}: {e}"
         store.mark_failed(rid, result)

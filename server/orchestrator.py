@@ -94,6 +94,7 @@ def _deliver_inbox(bus, inst_name: str, task: str):
 def run_turn(cfg, bb, user_text, agent_runner) -> str:
     from server.adapters import run_agent
     from server.bus import BUS
+    from server import ledger
     agent_runner = agent_runner or run_agent
     lead = _lead(cfg)
     bb.add("user", "User", user_text)
@@ -106,7 +107,8 @@ def run_turn(cfg, bb, user_text, agent_runner) -> str:
               "[SAY: ...]. Instances: "
               + ", ".join(f"{i.name}({i.role})" for i in cfg.instances if i.role != "Lead"))
     for _ in range(max_rounds):
-        out = agent_runner(lead, prompt)
+        with ledger.trigger("human_turn"):        # lượt Lead mở ra từ tin người gõ (6c: ghi dòng dõi)
+            out = agent_runner(lead, prompt)
         bb.add(lead.name, "Lead", out)
         m = parse_markers(out)
         for to, txt in m["msg"]:            # Lead có thể nhắn thẳng cho agent (bus)
@@ -130,7 +132,8 @@ def run_turn(cfg, bb, user_text, agent_runner) -> str:
             if reason:
                 run_inst.limit_reason = reason     # thuộc tính phụ, không phải field cấu hình
                 run_inst.limit_untrusted = not trusted
-            res = agent_runner(run_inst, task)
+            with ledger.trigger("lead_delegate"):      # việc do OUTPUT của Lead giao đi (dữ liệu, không phải chỉ thị người)
+                res = agent_runner(run_inst, task)
             bb.add(inst.name, inst.role, res)
             for to, txt in parse_markers(res)["msg"]:      # agent nhắn agent khác (bus)
                 BUS.post(inst.name, to, txt, internal=True, level=level)
