@@ -17,6 +17,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
       <span id="dashBadge" class="rail-badge" hidden></span>
     </button>
+    <button class="rail-btn" data-tab="mausPanel" title="OpenMausBot (chat bot, mở ở tab riêng)" aria-label="OpenMausBot" id="mausRailBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 4.4 3.4 8.3 8 9 4.6-.7 8-4.6 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg>
+      <span id="mausDot" class="rail-badge" hidden>●</span>
+    </button>
     <button class="rail-btn" data-tab="libraryPanel" title="Agents" aria-label="Agents">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>
     </button>
@@ -78,6 +82,14 @@
 
             <h2>Instances (agent đã dựng)</h2>
             <div id="instanceList" class="instance-list"></div>
+          </section>
+
+          <section id="mausPanel" class="panel">
+            <h2>🤖 OpenMausBot</h2>
+            <div id="mausCard" class="maus-card"><p class="empty">đang kiểm tra…</p></div>
+            <p class="hint">OpenMausBot chặn nhúng khung (an toàn có chủ ý) nên mở ở tab riêng. Chạy cùng Orbit:
+              <code>.\run.ps1 -WithMaus</code> · chạy riêng: <code>.\maus.ps1 start</code> · đăng nhập lần đầu
+              (mã dùng một lần): <code>.\maus.ps1 pair</code>.</p>
           </section>
 
           <section id="dashPanel" class="panel">
@@ -261,5 +273,6 @@
   <script src="/voices.js"></script>
   <script src="/dashboard.js"></script>
   <script src="/approvals.js"></script>
+  <script src="/maus.js"></script>
 </body>
 </html>
