@@ -5,6 +5,11 @@ import subprocess
 import threading
 import time
 from server.config import Instance
+from server import paths
+
+# RF8: Windows tìm lệnh trong thư mục hiện tại trước PATH => `claude.cmd` đặt trong cwd sẽ bị chạy thay CLI thật.
+# Biến này tắt hành vi đó cho shutil.which và CreateProcess của chính tiến trình Orbit.
+os.environ.setdefault("NoDefaultCurrentDirectoryInExePath", "1")
 
 log = logging.getLogger(__name__)
 import re
@@ -84,7 +89,9 @@ def build_command(inst: Instance, prompt: str, level: str | None = None) -> list
         # codex exec không có prompt đối số thì tự đọc stdin.
         return ["codex"] + _READONLY["codex"]
     if inst.engine == "claude":
-        cmd = ["claude", "-p", prompt, "--append-system-prompt", role_sys]
+        # RF7: prompt đứng ngay sau `-p` — bắt đầu bằng "-" sẽ bị CLI hiểu là cờ. Chèn tiền tố, không từ chối.
+        argv_prompt = f"[{role}] {prompt}" if prompt.lstrip().startswith("-") else prompt
+        cmd = ["claude", "-p", argv_prompt, "--append-system-prompt", role_sys]
         session_id = getattr(inst, "session_id", "")
         if session_id:
             cmd += ["--resume", session_id]
@@ -257,8 +264,10 @@ def run_agent(inst: Instance, prompt: str, timeout: int = 120, *, override_level
         # stderr GỘP vào stdout để reader thread thấy cả permission-prompt in ra stderr
         # (máy trạng thái blocked của jobs.py soi đuôi output sống — kiểu herdr).
         extra = {"stdin": subprocess.PIPE} if via_stdin else {}
+        # RF8: cwd RIÊNG của instance (workspaces/orbit/<name>), không phải gốc repo Orbit.
         p = subprocess.Popen(real, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                             text=True, encoding="utf-8", errors="replace", **extra)
+                             text=True, encoding="utf-8", errors="replace",
+                             cwd=paths.instance_cwd(inst), **extra)
         RUNNING[p.pid] = p
         jobs.attach_process(job, p)           # reader chạy trước khi ghi stdin (tránh bí pipe)
         deadline = time.monotonic() + timeout

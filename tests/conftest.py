@@ -7,6 +7,12 @@ security.EXTRA_HOSTS.add("testserver")
 
 
 @pytest.fixture(autouse=True)
+def _isolated_workspace(tmp_path, monkeypatch):
+    """cwd riêng của instance (RF8) nằm trong tmp — test không tạo thư mục thật dưới ~/OpcOS/workspaces."""
+    monkeypatch.setenv("ORBIT_WORKSPACE_ROOT", str(tmp_path / "ws"))
+
+
+@pytest.fixture(autouse=True)
 def _isolated_approvals(tmp_path, monkeypatch):
     """Mọi test dùng kho duyệt riêng (nhật ký + PIN trong tmp): không ghi sessions/approvals.jsonl thật,
     không đọc ~/.secret thật."""

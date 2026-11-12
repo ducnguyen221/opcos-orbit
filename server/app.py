@@ -31,8 +31,9 @@ SESSIONS_DIR = os.environ.get(
 CURRENT_SESSION_ID: str | None = None
 REMOTE_MANUAL_HINT = (
     "Nếu lệnh 'claude remote-control' không khả dụng trên máy này: dùng Claude "
-    "Code app trên điện thoại (đăng nhập cùng tài khoản, mở phiên máy tính), "
-    "hoặc trỏ ngrok/tailscale vào cổng 7788 của OpcOS Orbit thủ công."
+    "Code app trên điện thoại (đăng nhập cùng tài khoản, mở phiên máy tính). "
+    "KHÔNG phơi cổng 7788 ra mạng (không ngrok, không bind 0.0.0.0): cổng này không có xác thực; "
+    "xem từ xa bằng cổng Kira (server/kira_gateway.py) trên mạng riêng đã mã hoá."
 )
 
 AGENT_DIRS = [os.path.join(OPCOS_ROOT, "system", "plugins"),
@@ -133,8 +134,13 @@ def rename_instance(name: str, body: RenameInstanceBody):
 def update_instance(name: str, body: UpdateInstanceBody):
     """Sửa role/engine/model/autonomy/voice từ UI (ép duy nhất 1 Lead)."""
     store = InstanceStore(CONFIG_PATH)
+    cur = next((i for i in store.list() if i.name == name), None)
+    if cur is not None and cur.autonomy == "full" and (
+            (body.engine is not None and body.engine != cur.engine)
+            or (body.role is not None and body.role != cur.role)):
+        # RF6: instance đang `full` không được đổi engine/role qua API (tránh nâng quyền theo đường vòng)
+        raise HTTPException(status_code=409, detail="instance đang ở mức full: không đổi engine/role qua API")
     if body.autonomy is not None:
-        cur = next((i for i in store.list() if i.name == name), None)
         if cur is None:
             raise HTTPException(status_code=404, detail="instance not found")
         verdict = security.autonomy_change_allowed(cur.autonomy, body.autonomy)
@@ -453,7 +459,10 @@ def create_voice(body: VoiceCreateBody):
 
 @app.delete("/api/voices/{name}")
 def remove_voice(name: str):
-    voices.delete_voice(name)
+    try:
+        voices.delete_voice(name)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="tên giọng không hợp lệ")
     return {"ok": True, "name": name}
 
 

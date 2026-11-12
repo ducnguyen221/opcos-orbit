@@ -32,9 +32,21 @@ def create_from_instruct(instruct: str, name: str) -> str:
         "print(vp.save_profile_from_instruct(m, sys.argv[1], sys.argv[2], set_as_default=False))",
         instruct, name)
 
+import re
+_VOICE_NAME = re.compile(r"[\w][\w\-. ]{0,63}")     # tên giọng: không dấu phân cách đường dẫn, không bắt đầu bằng "."
+
+
+def valid_voice_name(name) -> bool:
+    return isinstance(name, str) and bool(_VOICE_NAME.fullmatch(name)) and ".." not in name
+
+
 def delete_voice(name: str) -> str:
-    voices_dir = os.path.join(OV_DIR, "voices")
+    if not valid_voice_name(name):                    # RF11: không để `..\` thoát khỏi thư mục voices
+        raise ValueError("tên giọng không hợp lệ")
+    voices_dir = os.path.realpath(os.path.join(OV_DIR, "voices"))
     for ext in (".wav", ".txt"):
-        p = os.path.join(voices_dir, name + ext)
+        p = os.path.realpath(os.path.join(voices_dir, name + ext))
+        if os.path.dirname(p) != voices_dir:          # chốt thêm sau khi chuẩn hoá đường dẫn
+            raise ValueError("tên giọng không hợp lệ")
         if os.path.exists(p): os.remove(p)
     return "deleted"
