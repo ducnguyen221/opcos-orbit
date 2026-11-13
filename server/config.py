@@ -12,6 +12,7 @@ class Instance:
     autonomy: str = "suggest"
     model: str = ""        # chỉ dùng cho engine ollama (mặc định qwen2.5:7b nếu rỗng)
     skip_permissions: bool = False  # opt-in rõ ràng; agy chỉ nhận cờ bỏ-qua-quyền khi autonomy=full
+    cwd: str = ""          # thư mục làm việc riêng; rỗng = workspaces/orbit/<name>; chỉ nhận đường dưới workspace root
 
 @dataclass
 class Config:

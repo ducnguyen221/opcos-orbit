@@ -8,34 +8,46 @@ Trạng thái: nhánh mặc định `main` (remote `origin` trên GitHub); bộ 
 
 ---
 
-## 🐞 VIỆC ĐẦU TIÊN — lỗi bảo mật: 3 mức tự trị đang là TRANG TRÍ
+## Trạng thái cổng tự trị (P9, 06/11/2026)
 
-**Phát hiện + kiểm chứng 2026-08-09** (Codex nêu, đã tự verify bằng grep).
+Lỗi cũ "3 mức tự trị chỉ là trang trí" **đã sửa** — đừng sửa lại cổng.
 
-`check_autonomy(inst, action)` **có thật** ở `server/adapters.py:132` và **logic đúng**:
+- `run_agent` (`server/adapters.py`) gọi `check_autonomy` ở biên side-effect, TRƯỚC khi spawn/gọi
+  engine; lỗi hay thiếu/giá trị lạ của `autonomy` → coi như `suggest` (fail-closed).
+- Dưới `full`: `claude`/`codex` chạy **chỉ-đọc** (cờ chỉ-đọc + prompt đi qua stdin, output có dòng
+  `[chỉ-đọc]`); engine không có chế độ chỉ-đọc kiểm được (`gemini`, `agy`) bị **từ chối** trước khi
+  chạy (`readonly_refusal`). `ollama` không có công cụ nên được chạy.
+- Mức hiệu lực đi theo nguồn tin trên bus: tin từ nguồn không xác thực bị hạ mức.
+- **Chỉ-đọc không phải cách ly**: instance chỉ-đọc vẫn **đọc được ổ đĩa** của máy chạy Orbit.
+- Test: `tests/test_autonomy_gate.py` (đường thực thi), `tests/test_adapters.py`, `tests/test_orchestrator.py`.
 
-```
-full       -> True
-auto-safe  -> action in ("read", "draft", "query")
-còn lại    -> action in ("read", "query")
-```
+**Việc còn mở** (chi tiết ở hồ sơ `~/OpcOS/system/docs/plans/2026-11-06-p9-orbit-plugin/` và
+`~/OpcOS/system/workshop-records/opcos-orbit/plans/2026-11-13-step6-orbit-maus/SPEC.md`):
+mỗi instance đã có cwd riêng (`workspaces/orbit/<tên>`) nhưng **ghi bằng đường tuyệt đối ra ngoài cwd — kể cả
+`config.json` — ở mức `full` vẫn được** (cần cờ sandbox của claude/codex, chưa đo; RF8 mới xong phần cwd);
+prompt của claude ở mức `full` vẫn nằm trong argv (RF7: chỉ chặn việc prompt bắt đầu bằng `-` thành cờ);
+API 7788 không xác thực người gọi (RF13); khung `[ATTACH …]` thiếu dấu đóng. RF6, RF11, RF12 và việc
+`stop.ps1` xác minh pid đã xử lý (06b/6a, 13/11/2026).
 
-Nhưng `grep -rn check_autonomy` cho thấy **chỉ `tests/test_adapters.py:24-25` gọi nó** — **không một đường thực thi production nào gọi**.
+## Ngoại lệ gọi CLI trực tiếp (Đức chốt phương án A, 13/11/2026)
 
-⇒ Instance khai `suggest` vẫn làm được mọi thứ engine cho phép. Cộng thêm `adapters.py:19`
-hardcode `--dangerously-skip-permissions` cho engine `agy` (bắt buộc, không có thì agy treo)
-⇒ **agy instance = toàn quyền máy bất kể tier khai báo**.
+Orbit gọi `claude`/`codex`/`gemini`/`agy` **trực tiếp**, không qua cầu `ask-*`. Đây là **ngoại lệ có tên** của luật
+«đường đi duy nhất là cầu có governor» (`~/OpcOS/system/governance/core.md` mục *Multi-agent orchestration*):
+Orbit là giao diện điều phối do chính người dùng mở và gõ tin vào, không phải agent tự gọi chéo. Ngoại lệ chỉ
+đứng khi đủ **cả 5 điều kiện** — mất một điều kiện là hết ngoại lệ và phải quay về dùng cầu:
 
-### Cần làm
-1. Gọi `check_autonomy` ở **đúng biên side-effect** trong `orchestrator`/`adapters`, TRƯỚC khi chạy action.
-2. **Fail-closed**: thiếu field `autonomy` → coi như `suggest`, không phải `full`.
-3. Cách ly `agy`: chỉ giao việc chỉ-đọc, hoặc chạy trong sandbox riêng.
-4. Thêm test chứng minh một instance `suggest` **không** thực hiện được action ghi — hiện tại
-   test chỉ kiểm hàm thuần, không kiểm đường thực thi. Đó chính là lý do bug sống sót.
+1. Lượt chỉ khởi từ **tin người gõ trong Orbit** (WebSocket) hoặc từ **việc người đã duyệt trên UI** (`approvals.run_approved`).
+   Không có lịch, tiến trình nền hay CI tự khởi lượt.
+2. Cổng tự trị ba mức giữ nguyên; mức hiệu lực = thấp nhất của Lead, instance đích và nguồn tin (`orchestrator._limit`);
+   chỉ cổng duyệt (`override_level`, bước 5) nâng mức, một lần, đúng nội dung đã duyệt, kèm PIN.
+3. Mọi lượt vào sổ `sessions/agent-ledger.jsonl` (`server/ledger.py`: nguồn lượt, mức, kết quả, thời lượng — không prompt);
+   trần mềm 40 lượt/ngày/engine **chỉ cảnh báo**.
+4. Orbit **không gọi `ask-*`**, không bật `allow_autocall`, không mở chuỗi quá `max_rounds` (3 vòng).
+5. Sổ của Orbit và sổ cái của cầu là **hai sổ tách nhau**: Orbit không tiêu quota cầu, không có cầu dao — giới hạn đã biết, không phải thay thế governor.
 
-### Bối cảnh luật (đọc trước khi thiết kế)
-- `~/OpcOS/system/plugins/kpim-skills/instructions/core.md` — mục *Ba mức tự trị* (`suggest`/`auto-safe`/`full`)
-  và *Multi-agent orchestration* (chuẩn gọi agent chéo).
+### Bối cảnh luật (đọc trước khi đổi cổng)
+- `~/OpcOS/system/governance/core.md` — mục *Safety & boundaries* (ba mức tự trị `suggest`/`auto-safe`/`full`
+  ở `references/workflow-chi-tiet.md`) và *Multi-agent orchestration* (chuẩn gọi agent chéo).
 - `~/OpcOS/system/state/ENVELOPES.md` — mô hình "duyệt phạm vi một lần, không duyệt từng bước";
   phép thử là **THÀNH VIÊN của phạm vi, không phải độ nặng** của hành động.
 - Nguyên tắc nền: Brain `50_KNOWLEDGE/57_FRAMEWORKS/57.07_Harness_Engineering_Framework` mục *Memory & Knowledge (H7)*

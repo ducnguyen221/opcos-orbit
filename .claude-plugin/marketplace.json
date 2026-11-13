@@ -1,0 +1,23 @@
+{
+  "name": "opcos-orbit",
+  "description": "OpcOS Orbit: local web UI to manage coding agents.",
+  "owner": {
+    "name": "Nguyễn Quang Đức",
+    "email": "ducnguyen.ams@gmail.com",
+    "url": "https://ducnguyen.vn"
+  },
+  "plugins": [
+    {
+      "name": "orbit",
+      "description": "OpcOS Orbit: optional local web UI (localhost:7788) to manage and talk to several coding agents. OpcOS plugin, requires OPCOS_ROOT; Windows only.",
+      "version": "0.1.0",
+      "source": "./plugin",
+      "license": "MIT",
+      "author": {
+        "name": "Nguyễn Quang Đức",
+        "email": "ducnguyen.ams@gmail.com",
+        "url": "https://ducnguyen.vn"
+      }
+    }
+  ]
+}

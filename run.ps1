@@ -1,7 +1,8 @@
 ﻿# run.ps1 - Khoi dong OpcOS Orbit server + mo trinh duyet
 #   -Detached : chay NEN (khong cua so, song doc lap terminal - kieu herdr detach).
 #               Dung .\stop.ps1 de tat. PID ghi o .server.pid
-param([switch]$Detached)
+#   -WithMaus : khoi dong kem OpenMausBot (plugins/openmausbot, HOME rieng) qua .\maus.ps1 start. Tat: .\stop.ps1 -WithMaus
+param([switch]$Detached, [switch]$WithMaus)
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -22,18 +23,14 @@ $url = "http://localhost:$port"
 
 Write-Host "Khoi dong OpcOS Orbit tai $url ..." -ForegroundColor Cyan
 
-try {
-    $lanIp = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop |
-        Where-Object { $_.InterfaceAlias -notmatch "Loopback" -and $_.IPAddress -notlike "169.254.*" } |
-        Select-Object -First 1 -ExpandProperty IPAddress)
-    if ($lanIp) {
-        Write-Host "Truy cap tu dien thoai/may khac trong cung mang LAN: http://${lanIp}:$port" -ForegroundColor DarkGray
-    }
-} catch {
-    # bo qua neu khong lay duoc IP LAN
-}
+Write-Host "Server CHI nghe localhost (127.0.0.1): dien thoai/may khac KHONG vao duoc truc tiep qua LAN. KHONG sua thanh --host 0.0.0.0 (lop chan Host/Origin khong chong duoc client LAN)." -ForegroundColor DarkGray
 Write-Host "Muon truy cap tu xa (ngoai mang LAN): dung panel 'Remote control' tren web, hoac xem huong dan trong /api/remote/toggle." -ForegroundColor DarkGray
 Write-Host "Mac dinh server CHI lang nghe localhost (an toan). Bat 'Remote' tren panel se thu goi 'claude remote-control on' neu CLI ho tro." -ForegroundColor DarkGray
+
+if ($WithMaus) {
+    # Tien trinh con rieng: viec loc bien moi truong cua maus.ps1 KHONG anh huong moi truong cua Orbit.
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "maus.ps1") start
+}
 
 if ($Detached) {
     # Detach that su (distill herdr): server song doc lap cua so goi no.

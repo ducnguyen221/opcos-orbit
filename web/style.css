@@ -457,3 +457,34 @@ select:focus, input:focus { outline: none; border-color: var(--accent); box-shad
 @media (prefers-reduced-motion: reduce) {
   .job-row.st-blocked, .dot.d-working { animation: none; }
 }
+
+/* ── Thẻ duyệt quyền (bước 5) ── */
+.appr-list { margin-bottom: 0.75rem; }
+.appr-list h3 { font-size: 0.95rem; margin: 0 0 0.4rem; }
+.appr-card { border: 1px solid var(--accent); border-radius: 8px; padding: 0.6rem 0.7rem; margin-bottom: 0.5rem;
+  background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.appr-card.appr-rejected, .appr-card.appr-consumed, .appr-card.appr-approved { opacity: 0.75; border-color: var(--muted); }
+.appr-head { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.appr-sum { color: var(--muted); font-size: 0.8rem; margin: 0.2rem 0; }
+.appr-prompt { white-space: pre-wrap; word-break: break-word; max-height: 12rem; overflow: auto; font-size: 0.82rem;
+  background: color-mix(in srgb, var(--muted) 12%, transparent); padding: 0.4rem; border-radius: 6px; margin: 0.3rem 0; }
+.appr-acts { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
+.appr-pin { width: 7rem; }
+.appr-note { color: var(--muted); font-size: 0.8rem; margin-top: 0.3rem; }
+
+.appr-warn { color: #b45309; font-size: 0.82rem; margin: 0.25rem 0; font-weight: 600; }
+.appr-confirm { display: block; font-size: 0.82rem; margin: 0.3rem 0; }
+
+/* ── Thẻ OpenMausBot (6b) ── */
+.maus-card { border: 1px solid var(--muted); border-radius: 8px; padding: 0.6rem 0.7rem; margin-bottom: 0.6rem; }
+.maus-row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.4rem; }
+.maus-open { display: inline-block; padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid var(--accent); text-decoration: none; }
+
+.ledger-line { font-size: 0.82rem; margin: 0.3rem 0 0.6rem; }
+
+/* ── Màn Máy trạm (đa máy) ── */
+.fleet-card { border: 1px solid var(--muted); border-radius: 8px; padding: 0.6rem 0.7rem; margin-bottom: 0.6rem; }
+.fleet-card.fleet-down { border-color: #b45309; }
+.fleet-head { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.3rem; }
+.fleet-sum, .fleet-msg { color: var(--muted); font-size: 0.82rem; margin: 0.2rem 0; }
+.fleet-err { color: #b45309; font-size: 0.85rem; font-weight: 600; }

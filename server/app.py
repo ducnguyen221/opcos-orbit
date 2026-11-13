@@ -1,7 +1,7 @@
-import asyncio, base64, json, subprocess, tempfile, os
+import asyncio, base64, json, subprocess, tempfile, os, threading
 from fastapi import FastAPI, WebSocket, HTTPException, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from server.config import load_config
 from server.blackboard import Blackboard
@@ -11,8 +11,9 @@ from server.agent_library import discover_agents, scan_folder_for_agents
 from server.instances import InstanceStore
 from server.context_manager import scan_folder, save_upload, route_context
 from server.session import SessionManager
-from server import security
-from server.paths import OPCOS_ROOT
+from server import security, approvals, maus, ledger
+from server import fleet as fleet_mod
+from server.paths import OPCOS_ROOT, upload_dir
 from server.adapters import check_autonomy
 
 app = FastAPI()
@@ -23,10 +24,7 @@ CONFIG_PATH = os.environ.get(
 )
 CFG = load_config(CONFIG_PATH)
 SESS = os.path.join(os.path.dirname(__file__), "..", "sessions", "current.jsonl")
-UPLOAD_DIR = os.environ.get(
-    "AGENT_CONSOLE_UPLOAD_DIR",
-    os.path.join(os.path.dirname(__file__), "..", "workspace", "uploads"),
-)
+UPLOAD_DIR = upload_dir()
 SESSIONS_DIR = os.environ.get(
     "AGENT_CONSOLE_SESSIONS_DIR",
     os.path.join(os.path.dirname(__file__), "..", "sessions"),
@@ -34,8 +32,9 @@ SESSIONS_DIR = os.environ.get(
 CURRENT_SESSION_ID: str | None = None
 REMOTE_MANUAL_HINT = (
     "Nếu lệnh 'claude remote-control' không khả dụng trên máy này: dùng Claude "
-    "Code app trên điện thoại (đăng nhập cùng tài khoản, mở phiên máy tính), "
-    "hoặc trỏ ngrok/tailscale vào cổng 7788 của OpcOS Orbit thủ công."
+    "Code app trên điện thoại (đăng nhập cùng tài khoản, mở phiên máy tính). "
+    "KHÔNG phơi cổng 7788 ra mạng (không ngrok, không bind 0.0.0.0): cổng này không có xác thực; "
+    "xem từ xa bằng cổng Kira (server/kira_gateway.py) trên mạng riêng đã mã hoá."
 )
 
 AGENT_DIRS = [os.path.join(OPCOS_ROOT, "system", "plugins"),
@@ -136,8 +135,13 @@ def rename_instance(name: str, body: RenameInstanceBody):
 def update_instance(name: str, body: UpdateInstanceBody):
     """Sửa role/engine/model/autonomy/voice từ UI (ép duy nhất 1 Lead)."""
     store = InstanceStore(CONFIG_PATH)
+    cur = next((i for i in store.list() if i.name == name), None)
+    if cur is not None and cur.autonomy == "full" and (
+            (body.engine is not None and body.engine != cur.engine)
+            or (body.role is not None and body.role != cur.role)):
+        # RF6: instance đang `full` không được đổi engine/role qua API (tránh nâng quyền theo đường vòng)
+        raise HTTPException(status_code=409, detail="instance đang ở mức full: không đổi engine/role qua API")
     if body.autonomy is not None:
-        cur = next((i for i in store.list() if i.name == name), None)
         if cur is None:
             raise HTTPException(status_code=404, detail="instance not found")
         verdict = security.autonomy_change_allowed(cur.autonomy, body.autonomy)
@@ -278,10 +282,152 @@ if os.environ.get("AGENT_CONSOLE_DEMO_JOBS") == "1":
     _bus.post("researcher-1", "coder-1", "pattern #2 = ring-buffer tail, xem note bus")
     _bus.post("coder-1", "all", "đã áp pattern #2 vào jobs.py, mời review")
 
+# ── Đa máy (Giai đoạn 2): hub xem + dừng/từ chối/hoãn việc trên các máy phụ qua cổng Kira của họ. TẮT mặc định
+#    (không có settings.peers ⇒ chỉ máy này). KHÔNG có Approve, KHÔNG giao việc mới, KHÔNG route khởi động gì. ────────
+FLEET = None
+_FLEET_HTTP = {"bad_request": 422, "invalid": 422, "not_found": 404, "rate_limited": 429, "not_pending": 409,
+               "duplicate_name": 409, "duplicate_key": 409, "duplicate_url": 409, "bad_config": 409, "bad_url": 409,
+               "bad_name": 409, "no_key": 409, "no_pin": 409, "pin_mismatch": 409}
+
+
+def _fleet_peers() -> list:
+    """settings.peers đọc MỖI lần; chỉ giữ name + url (mọi khoá khác — allow_loopback, key_dir… — bị bỏ)."""
+    try:
+        peers = InstanceStore(CONFIG_PATH).raw.get("settings", {}).get("peers", [])
+    except Exception:
+        return []
+    if not isinstance(peers, list):
+        return []
+    return [{"name": p.get("name"), "url": p.get("url")} if isinstance(p, dict) else p for p in peers]
+
+
+def _fleet_local() -> dict:
+    """Máy này, cùng hình dạng với phản hồi của cổng Kira (không prompt, không pid)."""
+    from server import jobs
+    keep = ("id", "instance", "engine", "state", "elapsed")
+    summary = jobs.summary()
+    summary["approvals"] = approvals.get_store().pending_count()
+    return {"jobs": [{k: j[k] for k in keep if k in j} for j in jobs.list_jobs()][:200],
+            "summary": {k: v for k, v in summary.items() if k in fleet_mod._SUMMARY_KEYS},
+            "approvals": approvals.get_store().kira_list()[:200], "ledger": ledger.get_ledger().summary()}
+
+
+_FLEET_LOCK = threading.Lock()
+
+
+def _get_fleet():
+    global FLEET
+    with _FLEET_LOCK:                                   # hai yêu cầu đầu tiên đồng thời không tạo hai Fleet
+        if FLEET is None:
+            FLEET = fleet_mod.Fleet(peers_provider=_fleet_peers, local_provider=_fleet_local, own_ports=(7788,))
+        return FLEET
+
+
+def _fleet_reply(res: dict):
+    if res.get("ok") is True:
+        return {"ok": True}
+    code = res.get("error") if isinstance(res.get("error"), str) else "bad_response"
+    return JSONResponse(status_code=_FLEET_HTTP.get(code, 502), content={"ok": False, "error": code})
+
+
+@app.get("/api/fleet")
+def api_fleet():
+    return _get_fleet().snapshot()
+
+
+@app.post("/api/fleet/{peer}/jobs/{job_id}/stop")
+def api_fleet_stop(peer: str, job_id: int):
+    return _fleet_reply(_get_fleet().act(peer, "stop", job_id))
+
+
+@app.post("/api/fleet/{peer}/approvals/{aid}/reject")
+def api_fleet_reject(peer: str, aid: str):
+    return _fleet_reply(_get_fleet().act(peer, "reject", aid))
+
+
+@app.post("/api/fleet/{peer}/approvals/{aid}/defer")
+def api_fleet_defer(peer: str, aid: str):
+    return _fleet_reply(_get_fleet().act(peer, "defer", aid))
+
+
+@app.get("/api/ledger/summary")
+def api_ledger_summary():
+    """Số lượt agent hôm nay theo engine + trần MỀM (chỉ cảnh báo) + nguồn lượt. Không có instance/prompt."""
+    return ledger.get_ledger().summary()
+
+
+@app.get("/api/maus/status")
+def api_maus_status():
+    """Thẻ OpenMausBot (6b): chỉ-đọc. KHÔNG có route khởi động/tắt — chạy bằng maus.ps1 / run.ps1 -WithMaus."""
+    st = maus.status()
+    st.setdefault("url", f"http://127.0.0.1:{st['port']}")
+    return st
+
+
 @app.get("/api/jobs")
 def api_jobs():
     from server import jobs
-    return {"jobs": jobs.list_jobs(), "summary": jobs.summary()}
+    summary = jobs.summary()
+    waiting = approvals.get_store().pending_count()        # việc chờ duyệt cũng là "cần chú ý"
+    summary["approvals"] = waiting
+    summary["attention"] += waiting
+    return {"jobs": jobs.list_jobs(), "summary": summary}
+
+
+# ── Duyệt quyền (bước 5, kênh UI). decided_by do ROUTE đặt ("ui"), không nhận từ body. PIN chỉ đặt bằng
+#    `python -m server.approvals set-pin` — KHÔNG có API đặt/đổi PIN. ─────────────────────────────────────
+class ApprovalDecideBody(BaseModel):
+    decision: str
+    pin: str | None = None
+    confirm_untrusted: bool = False      # xác nhận rõ khi yêu cầu đến từ nguồn không xác thực
+
+
+_APPROVAL_HTTP = {"not_found": 404, "not_pending": 409, "pin_not_set": 409, "bad_pin": 403,
+                  "pin_locked": 429, "channel_cannot_approve": 403, "log_failed": 500,
+                  "confirm_untrusted": 409, "prompt_too_long": 400}
+
+
+def _run_approved_bg(rid: str) -> None:
+    try:
+        approvals.run_approved(rid)                          # tra cứu lúc gọi (test thay được)
+    except Exception:
+        pass                                                 # kết quả/lỗi nằm ở job + yêu cầu; không làm sập luồng
+
+
+@app.get("/api/approvals")
+def api_approvals():
+    store = approvals.get_store()
+    return {"approvals": store.ui_list(), "pin_set": store.pin_configured()}
+
+
+@app.post("/api/approvals/{rid}/decide")
+def api_approval_decide(rid: str, body: ApprovalDecideBody):
+    try:
+        req = approvals.get_store().decide(rid, body.decision, "ui", pin=body.pin,
+                                           confirm_untrusted=body.confirm_untrusted)
+    except approvals.ApprovalError as e:
+        raise HTTPException(status_code=_APPROVAL_HTTP.get(e.code, 400), detail=e.code)
+    if req.state == "approved":
+        threading.Thread(target=_run_approved_bg, args=(rid,), daemon=True).start()
+    return {"ok": True, "state": req.state}
+
+
+# Kênh Kira (qua cổng Kira, loopback): CHỈ xem (không prompt) / Từ chối / Hoãn. KHÔNG có route nào Approve ở đây
+# — action ngoài {reject, defer} không khớp route => 404. decided_by = "kira" do route đặt.
+@app.get("/api/approvals/kira")
+def api_approvals_kira():
+    return {"approvals": approvals.get_store().kira_list()}
+
+
+@app.post("/api/approvals/{rid}/kira/{action}")
+def api_approval_kira(rid: str, action: str):
+    if action not in ("reject", "defer"):
+        raise HTTPException(status_code=404, detail="not found")
+    try:
+        req = approvals.get_store().decide(rid, action, "kira")
+    except approvals.ApprovalError as e:
+        raise HTTPException(status_code=_APPROVAL_HTTP.get(e.code, 400), detail=e.code)
+    return {"ok": True, "state": req.state}
 
 
 @app.post("/api/jobs/{job_id}/kill")
@@ -396,7 +542,10 @@ def create_voice(body: VoiceCreateBody):
 
 @app.delete("/api/voices/{name}")
 def remove_voice(name: str):
-    voices.delete_voice(name)
+    try:
+        voices.delete_voice(name)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="tên giọng không hợp lệ")
     return {"ok": True, "name": name}
 
 
@@ -450,7 +599,8 @@ async def ws(sock: WebSocket):
         # báo "đang xử lý" NGAY (CLI cold-start có thể 10-60s — để user không tưởng treo)
         await sock.send_text(json.dumps({"type": "pending"}))
         before = len(bb.turns())
-        say = await asyncio.to_thread(run_turn, CFG, bb, text, None)
+        cfg = load_config(CONFIG_PATH)     # RF5: đọc mới mỗi lượt — hạ quyền có hiệu lực ngay
+        say = await asyncio.to_thread(run_turn, cfg, bb, text, None)
         # CHỈ gửi turn MỚI của lượt này, BỎ turn user (client đã tự hiện) → hết duplicate
         for turn in bb.turns()[before:]:
             if turn.get("speaker") == "user":
@@ -458,7 +608,7 @@ async def ws(sock: WebSocket):
             await sock.send_text(json.dumps({"type": "turn", **turn}, ensure_ascii=False))
         await sock.send_text(json.dumps({"type": "pending_off"}))
         if voice_on:               # CHỈ chạy OmniVoice khi user bật nghe → tiết kiệm tài nguyên
-            audio = await asyncio.to_thread(tts.synthesize, say, CFG.instances[0].voice)
+            audio = await asyncio.to_thread(tts.synthesize, say, cfg.instances[0].voice)
             await sock.send_text(json.dumps({"type": "say", "audio_url": f"/audio?p={audio}"}))
 
 @app.get("/audio")
