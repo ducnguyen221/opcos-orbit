@@ -22,6 +22,8 @@ def _sign(method, path, body=b"", *, ts, nonce, secret=SECRET):
 
 class Upstream:
     def __init__(self):
+        self.ledger = {"date": "2026-11-13", "engines": {"claude": {"count": 3, "cap": 40, "state": "ok", "x": "y"}},
+                       "triggers": {"human_turn": 3, "evil": 9}, "outcomes": {"ok": 3}, "secret": "leak"}
         self.calls = []
         self.jobs = [{"id": 7, "instance": "c-1", "engine": "codex", "prompt": "BÍ MẬT prompt",
                       "state": "working", "seen": False, "pid": 4242, "started_at": 1.0,
@@ -42,6 +44,8 @@ class Upstream:
                                         "prompt": "LỌT PROMPT", "secret": "x"}]}
         if method == "POST" and path.startswith("/api/approvals/") and "/kira/" in path:
             return 200, {"ok": True, "state": path.rsplit("/", 1)[1] + "ed"}
+        if (method, path) == ("GET", "/api/ledger/summary"):
+            return 200, self.ledger
         return 404, {"detail": "nope"}
 
 
@@ -404,3 +408,82 @@ def test_kira_status_summary_includes_pending_approvals_count():
     app = kg.create_app(secret=SECRET, allowed_ips={CLIENT_IP}, fetch=with_appr, now=lambda: 1_000_000.0)
     r = TestClient(app).get("/kira/status", headers=_sign("GET", "/kira/status", ts=1_000_000, nonce="s-appr"))
     assert r.json()["summary"]["approvals"] == 2
+
+
+# --- Giai đoạn 2 (TK2): /kira/info, /kira/ledger, từ chối query -------------------------------------
+def test_kira_info_returns_machine_name_only():
+    app = kg.create_app(secret=SECRET, allowed_ips={CLIENT_IP}, fetch=Upstream(), now=lambda: 1_000_000.0,
+                        machine_name="may-2")
+    r = TestClient(app).get("/kira/info", headers=_sign("GET", "/kira/info", ts=1_000_000, nonce="i1"))
+    assert r.status_code == 200 and r.json() == {"name": "may-2"}
+
+
+@pytest.mark.parametrize("bad", ["", "a b", "a/b", "x" * 65, "tên-có-dấu", "a\nb", None, 5])
+def test_machine_name_is_sanitised(bad):
+    app = kg.create_app(secret=SECRET, allowed_ips={CLIENT_IP}, fetch=Upstream(), now=lambda: 1_000_000.0,
+                        machine_name=bad)
+    r = TestClient(app).get("/kira/info", headers=_sign("GET", "/kira/info", ts=1_000_000, nonce="i2"))
+    assert r.json() == {"name": "unknown"}
+
+
+def test_machine_name_default_comes_from_env_then_hostname(monkeypatch):
+    monkeypatch.setenv("KIRA_MACHINE_NAME", "tram-a")
+    assert kg.default_machine_name() == "tram-a"
+    monkeypatch.delenv("KIRA_MACHINE_NAME")
+    assert kg.default_machine_name() == kg.sanitize_machine_name(socket_hostname().split(".")[0])
+    monkeypatch.setattr(kg.socket, "gethostname", lambda: "may.corp.local")
+    assert kg.default_machine_name() == "may"
+
+
+def socket_hostname():
+    import socket
+    return socket.gethostname()
+
+
+def test_kira_ledger_is_whitelisted(env):
+    r = _get(env, "/kira/ledger", nonce="l1")
+    assert r.status_code == 200
+    d = r.json()
+    assert d == {"date": "2026-11-13", "engines": {"claude": {"count": 3, "cap": 40, "state": "ok"}},
+                 "triggers": {"human_turn": 3}, "outcomes": {"ok": 3}}
+    assert "leak" not in r.text and "evil" not in r.text and '"x"' not in r.text
+
+
+def test_kira_ledger_drops_hostile_values():
+    up = Upstream()
+    up.ledger = {"date": "<script>", "engines": {"claude": {"count": -1, "cap": 40, "state": "ok"},
+                                                 "x" * 40: {"count": 1, "cap": 40, "state": "ok"},
+                                                 "codex": {"count": True, "cap": 40, "state": "ok"},
+                                                 "gemini": {"count": 2, "cap": 40, "state": "pwn"},
+                                                 "agy": {"count": 10 ** 12, "cap": 40, "state": "ok"},
+                                                 "ollama": {"count": 2, "cap": 40, "state": "warn"}},
+                 "triggers": {"human_turn": "3", "direct": 1.5, "approved": 2}, "outcomes": []}
+    app = kg.create_app(secret=SECRET, allowed_ips={CLIENT_IP}, fetch=up, now=lambda: 1_000_000.0)
+    d = TestClient(app).get("/kira/ledger", headers=_sign("GET", "/kira/ledger", ts=1_000_000, nonce="l2")).json()
+    assert d["date"] is None and list(d["engines"]) == ["ollama"] and d["triggers"] == {"approved": 2} and d["outcomes"] == {}
+
+
+def test_kira_ledger_upstream_failure_is_502():
+    def boom(method, path, body=None):
+        raise OSError("down")
+    app = kg.create_app(secret=SECRET, allowed_ips={CLIENT_IP}, fetch=boom, now=lambda: 1_000_000.0)
+    r = TestClient(app).get("/kira/ledger", headers=_sign("GET", "/kira/ledger", ts=1_000_000, nonce="l3"))
+    assert r.status_code == 502
+
+
+@pytest.mark.parametrize("path", ["/kira/status", "/kira/info", "/kira/ledger", "/kira/approvals"])
+def test_query_strings_are_refused_on_every_route(env, path):
+    client, up, clock = env
+    h = _sign("GET", path, ts=int(clock[0]), nonce="q" + path.rsplit("/", 1)[1])
+    assert client.get(path + "?x=1", headers=h).status_code == 422
+    assert up.calls == []
+
+
+def test_query_strings_are_refused_on_post_routes_too(env):
+    client, up, clock = env
+    raw = json.dumps({"job_id": 7}).encode()
+    h = _sign("POST", "/kira/stop", raw, ts=int(clock[0]), nonce="qp1")
+    assert client.post("/kira/stop?x=1", content=raw, headers=h).status_code == 422
+    h2 = _sign("POST", f"/kira/approvals/{APPR_ID}/reject", b"", ts=int(clock[0]), nonce="qp2")
+    assert client.post(f"/kira/approvals/{APPR_ID}/reject?x=1", content=b"", headers=h2).status_code == 422
+    assert up.calls == []

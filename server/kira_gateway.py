@@ -23,6 +23,7 @@ import ipaddress
 import json
 import os
 import re
+import socket
 import time
 import urllib.error
 import urllib.parse
@@ -47,6 +48,46 @@ _JOB_FIELDS = ("id", "instance", "engine", "state", "elapsed")
 _SUMMARY_FIELDS = ("blocked", "working", "done_unseen", "error_unseen", "attention", "approvals")
 _APPR_FIELDS = ("id", "n", "instance", "engine", "level", "expires_in", "fp16", "state")
 _APPR_ID_RE = re.compile(r"[0-9a-f]{32}")
+_MACHINE_RE = re.compile(r"[A-Za-z0-9_.-]{1,64}")
+_LEDGER_ENGINE_RE = re.compile(r"[A-Za-z0-9_-]{1,32}")
+_LEDGER_DATE_RE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
+_LEDGER_STATES = ("ok", "warn", "over")
+_LEDGER_TRIGGERS = ("direct", "human_turn", "lead_delegate", "approved")
+_LEDGER_OUTCOMES = ("ok", "error", "pending_approval")
+_UNSET = object()
+
+
+def sanitize_machine_name(value) -> str:
+    return value if isinstance(value, str) and _MACHINE_RE.fullmatch(value) else "unknown"
+
+
+def default_machine_name() -> str:
+    # Hostname thô có thể là FQDN (máy nối domain): chỉ lấy nhãn đầu; muốn tên khác thì đặt KIRA_MACHINE_NAME.
+    return sanitize_machine_name(os.environ.get("KIRA_MACHINE_NAME") or socket.gethostname().split(".")[0])
+
+
+def _count(v) -> bool:
+    return isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 10 ** 9
+
+
+def _filter_ledger(d) -> dict:
+    """Lọc sổ lượt agent từ upstream (bảng trắng trường, kiểu, độ dài); giá trị lạ bị bỏ, không sửa."""
+    d = d if isinstance(d, dict) else {}
+    date = d.get("date")
+    engines = {}
+    raw = d.get("engines")
+    if isinstance(raw, dict):
+        for k, v in list(raw.items())[:20]:
+            if (isinstance(k, str) and _LEDGER_ENGINE_RE.fullmatch(k) and isinstance(v, dict)
+                    and _count(v.get("count")) and _count(v.get("cap")) and v.get("state") in _LEDGER_STATES):
+                engines[k] = {"count": v["count"], "cap": v["cap"], "state": v["state"]}
+
+    def pick(src, names):
+        src = src if isinstance(src, dict) else {}
+        return {k: src[k] for k in names if _count(src.get(k))}
+    return {"date": date if isinstance(date, str) and _LEDGER_DATE_RE.fullmatch(date) else None,
+            "engines": engines, "triggers": pick(d.get("triggers"), _LEDGER_TRIGGERS),
+            "outcomes": pick(d.get("outcomes"), _LEDGER_OUTCOMES)}
 _LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 
 Fetch = Callable[..., "tuple[int, dict]"]
@@ -165,7 +206,7 @@ class _Guard:
 # ------------------------------------------------------------------ app -------
 def create_app(*, secret: bytes, allowed_ips, upstream: str = "http://127.0.0.1:7788",
                fetch: Fetch | None = None, now: Callable[[], float] = time.time,
-               rate_limit: tuple = DEFAULT_RATE) -> FastAPI:
+               rate_limit: tuple = DEFAULT_RATE, machine_name=_UNSET) -> FastAPI:
     if not isinstance(secret, (bytes, bytearray)) or len(secret) < MIN_SECRET_LEN:
         raise ValueError("khóa HMAC thiếu hoặc quá ngắn")
     allowed = frozenset(_norm_ip(i) for i in (allowed_ips or ()))
@@ -210,7 +251,11 @@ def create_app(*, secret: bytes, allowed_ips, upstream: str = "http://127.0.0.1:
         except asyncio.TimeoutError:
             _deny(408, "request timeout")
 
+    machine = default_machine_name() if machine_name is _UNSET else sanitize_machine_name(machine_name)
+
     async def _authenticate(request: Request) -> bytes:
+        if request.url.query:                      # chữ ký chỉ phủ path: query không được ký ⇒ không nhận
+            _deny(422, "query not allowed")
         t = now()
         body = await _read_body(request)
         ts_h = request.headers.get("x-kira-ts", "")
@@ -269,6 +314,19 @@ def create_app(*, secret: bytes, allowed_ips, upstream: str = "http://127.0.0.1:
         if code != 200 or not isinstance(data, dict):
             _deny(502, "upstream unavailable")
         return {"ok": True, "id": jid}
+
+    @app.get("/kira/info")
+    async def kira_info(request: Request):
+        await _authenticate(request)
+        return {"name": machine}
+
+    @app.get("/kira/ledger")
+    async def kira_ledger(request: Request):
+        await _authenticate(request)
+        code, data = await _upstream("GET", "/api/ledger/summary")
+        if code != 200 or not isinstance(data, dict):
+            _deny(502, "upstream unavailable")
+        return _filter_ledger(data)
 
     @app.get("/kira/approvals")
     async def kira_approvals(request: Request):

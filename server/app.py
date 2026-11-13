@@ -1,7 +1,7 @@
 import asyncio, base64, json, subprocess, tempfile, os, threading
 from fastapi import FastAPI, WebSocket, HTTPException, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from server.config import load_config
 from server.blackboard import Blackboard
@@ -12,6 +12,7 @@ from server.instances import InstanceStore
 from server.context_manager import scan_folder, save_upload, route_context
 from server.session import SessionManager
 from server import security, approvals, maus, ledger
+from server import fleet as fleet_mod
 from server.paths import OPCOS_ROOT, upload_dir
 from server.adapters import check_autonomy
 
@@ -280,6 +281,74 @@ if os.environ.get("AGENT_CONSOLE_DEMO_JOBS") == "1":
     _bus.post("lead-1", "coder-1", "researcher-1 vừa gửi 5 pattern, dùng cái #2 nhé")
     _bus.post("researcher-1", "coder-1", "pattern #2 = ring-buffer tail, xem note bus")
     _bus.post("coder-1", "all", "đã áp pattern #2 vào jobs.py, mời review")
+
+# ── Đa máy (Giai đoạn 2): hub xem + dừng/từ chối/hoãn việc trên các máy phụ qua cổng Kira của họ. TẮT mặc định
+#    (không có settings.peers ⇒ chỉ máy này). KHÔNG có Approve, KHÔNG giao việc mới, KHÔNG route khởi động gì. ────────
+FLEET = None
+_FLEET_HTTP = {"bad_request": 422, "invalid": 422, "not_found": 404, "rate_limited": 429, "not_pending": 409,
+               "duplicate_name": 409, "duplicate_key": 409, "duplicate_url": 409, "bad_config": 409, "bad_url": 409,
+               "bad_name": 409, "no_key": 409, "no_pin": 409, "pin_mismatch": 409}
+
+
+def _fleet_peers() -> list:
+    """settings.peers đọc MỖI lần; chỉ giữ name + url (mọi khoá khác — allow_loopback, key_dir… — bị bỏ)."""
+    try:
+        peers = InstanceStore(CONFIG_PATH).raw.get("settings", {}).get("peers", [])
+    except Exception:
+        return []
+    if not isinstance(peers, list):
+        return []
+    return [{"name": p.get("name"), "url": p.get("url")} if isinstance(p, dict) else p for p in peers]
+
+
+def _fleet_local() -> dict:
+    """Máy này, cùng hình dạng với phản hồi của cổng Kira (không prompt, không pid)."""
+    from server import jobs
+    keep = ("id", "instance", "engine", "state", "elapsed")
+    summary = jobs.summary()
+    summary["approvals"] = approvals.get_store().pending_count()
+    return {"jobs": [{k: j[k] for k in keep if k in j} for j in jobs.list_jobs()][:200],
+            "summary": {k: v for k, v in summary.items() if k in fleet_mod._SUMMARY_KEYS},
+            "approvals": approvals.get_store().kira_list()[:200], "ledger": ledger.get_ledger().summary()}
+
+
+_FLEET_LOCK = threading.Lock()
+
+
+def _get_fleet():
+    global FLEET
+    with _FLEET_LOCK:                                   # hai yêu cầu đầu tiên đồng thời không tạo hai Fleet
+        if FLEET is None:
+            FLEET = fleet_mod.Fleet(peers_provider=_fleet_peers, local_provider=_fleet_local, own_ports=(7788,))
+        return FLEET
+
+
+def _fleet_reply(res: dict):
+    if res.get("ok") is True:
+        return {"ok": True}
+    code = res.get("error") if isinstance(res.get("error"), str) else "bad_response"
+    return JSONResponse(status_code=_FLEET_HTTP.get(code, 502), content={"ok": False, "error": code})
+
+
+@app.get("/api/fleet")
+def api_fleet():
+    return _get_fleet().snapshot()
+
+
+@app.post("/api/fleet/{peer}/jobs/{job_id}/stop")
+def api_fleet_stop(peer: str, job_id: int):
+    return _fleet_reply(_get_fleet().act(peer, "stop", job_id))
+
+
+@app.post("/api/fleet/{peer}/approvals/{aid}/reject")
+def api_fleet_reject(peer: str, aid: str):
+    return _fleet_reply(_get_fleet().act(peer, "reject", aid))
+
+
+@app.post("/api/fleet/{peer}/approvals/{aid}/defer")
+def api_fleet_defer(peer: str, aid: str):
+    return _fleet_reply(_get_fleet().act(peer, "defer", aid))
+
 
 @app.get("/api/ledger/summary")
 def api_ledger_summary():
